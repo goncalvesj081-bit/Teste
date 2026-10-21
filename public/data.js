@@ -76,7 +76,16 @@ export class TseSource {
   }
 
   async json(url) {
-    const r = await fetch(url, { cache: "no-store" });
+    let r;
+    try {
+      r = await fetch(url, { cache: "no-store" });
+    } catch {
+      const err = new Error(
+        "Sem acesso ao site do TSE. Se o painel está no GitHub Pages, o TSE pode estar bloqueando o acesso direto do navegador: rode com node server.js.",
+      );
+      err.semAcesso = true;
+      throw err;
+    }
     if (!r.ok) throw new Error(`${r.status} em ${url}`);
     return r.json();
   }

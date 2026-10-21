@@ -63,6 +63,7 @@ function serveStatic(req, res, urlPath) {
 http
   .createServer((req, res) => {
     const { pathname } = new URL(req.url, "http://localhost");
+    if (pathname === "/tse/status") return res.writeHead(200, { "content-type": "text/plain" }).end("ok");
     if (pathname.startsWith("/tse/")) return proxyTse(req, res, pathname.slice(4));
     serveStatic(req, res, decodeURIComponent(pathname));
   })

@@ -27,9 +27,19 @@ function saveConfig(cfg) {
   try { localStorage.setItem("painel-config", JSON.stringify(cfg)); } catch {}
 }
 
-// Servido pelo server.js -> usa o proxy /tse; aberto como arquivo -> acessa o TSE direto.
+// Servido pelo server.js -> usa o proxy "tse/"; hospedado só com arquivos estáticos
+// (GitHub Pages) ou aberto como arquivo -> acessa o TSE direto.
 const params = new URLSearchParams(location.search);
-const TSE_BASE = params.get("base") || (location.protocol.startsWith("http") ? "/tse" : "https://resultados.tse.jus.br");
+const TSE_DIRETO = "https://resultados.tse.jus.br";
+let TSE_BASE = params.get("base") || TSE_DIRETO;
+
+async function detectarProxy() {
+  if (params.get("base") || !location.protocol.startsWith("http")) return;
+  try {
+    const r = await fetch("tse/status", { cache: "no-store" });
+    if (r.ok && (await r.text()) === "ok") TSE_BASE = "tse";
+  } catch {}
+}
 
 let cfg = loadConfig();
 let source;
@@ -309,12 +319,14 @@ async function atualizar() {
   try {
     if (cfg.fonte === "tse" && !cfg.eleicao) throw new Error("Informe o código da eleição (botão “?” procura no TSE) ou use a Simulação.");
     const ufs = Object.keys(UFS);
+    let erroBr = null;
     const [br, ...estados] = await Promise.all([
-      source.brasil().catch(() => null),
+      source.brasil().catch((e) => ((erroBr = e), null)),
       ...ufs.map((uf) => source.estado(uf).catch(() => null)),
     ]);
     ufs.forEach((uf, i) => (state.estados[uf] = estados[i]));
     state.brasil = br || (estados.some(Boolean) ? aggregate(estados) : null);
+    if (!state.brasil && erroBr?.semAcesso) throw erroBr;
     if (!state.brasil) throw new Error("Nenhum arquivo de resultado encontrado. Confira ano, código da eleição e cargo.");
     // fixa as cores na ordem dos números dos candidatos, para não mudarem quando a liderança muda
     [...state.brasil.candidatos].sort((a, b) => a.numero.localeCompare(b.numero, undefined, { numeric: true })).forEach((c) => cor(c.numero));
@@ -431,6 +443,7 @@ $("#tabela-estados").addEventListener("click", (ev) => {
 // ------------------------------------------------------------- início
 
 syncForm();
+await detectarProxy();
 buildSource();
 agendar();
 atualizar();

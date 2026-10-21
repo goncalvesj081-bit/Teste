@@ -23,6 +23,21 @@ node server.js
 O `server.js` serve o painel e repassa as requisições `/tse/...` para o TSE
 (com cache de 15 s), o que evita bloqueio de CORS no navegador.
 
+## Hospedar no GitHub Pages
+
+O workflow `.github/workflows/pages.yml` publica a pasta `public/` a cada push.
+Para ativar (uma vez só):
+
+1. O repositório precisa ser **público** (Pages em repositório privado exige plano pago).
+2. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. Rode o workflow em **Actions → Publicar no GitHub Pages → Run workflow** (ou faça um push).
+   O link sai como `https://<usuario>.github.io/<repositorio>/`.
+
+No Pages não existe o `server.js`, então o navegador busca os dados direto em
+`resultados.tse.jus.br`. Isso só funciona se o TSE liberar acesso de outros sites (CORS).
+Se o painel mostrar "Sem acesso ao site do TSE", use o `server.js` (no seu computador ou
+num serviço como o Render). O modo Simulação funciona em qualquer caso.
+
 ## Configurando para domingo
 
 1. Em **Fonte**, escolha *TSE (ao vivo)*.
