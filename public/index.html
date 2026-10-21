@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel de Apuração</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Painel de Apuração</h1>
+      <p class="muted" id="status">Carregando…</p>
+    </div>
+    <form id="config" class="config">
+      <label>Fonte
+        <select name="fonte">
+          <option value="tse">TSE (ao vivo)</option>
+          <option value="demo">Simulação</option>
+        </select>
+      </label>
+      <label class="tse-only">Ano <input name="ano" size="4" inputmode="numeric"></label>
+      <label class="tse-only">Cód. eleição
+        <span class="inline"><input name="eleicao" size="5" inputmode="numeric" placeholder="ex.: 545">
+        <button type="button" id="descobrir" title="Procurar o código no TSE">?</button></span>
+      </label>
+      <label>Cargo
+        <select name="cargo">
+          <option value="0001">Presidente</option>
+          <option value="0003">Governador</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" name="auto" checked> Atualizar a cada 30s</label>
+      <button type="submit">Atualizar agora</button>
+    </form>
+  </header>
+
+  <main>
+    <section class="kpis" id="kpis" aria-live="polite"></section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Brasil</h2>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div id="brasil-bars"></div>
+    </section>
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="regioes" aria-selected="true">Por região</button>
+      <button role="tab" data-tab="estados" aria-selected="false">Por estado</button>
+      <button role="tab" data-tab="cidades" aria-selected="false">Por cidade</button>
+    </nav>
+
+    <section class="card tab-panel" id="tab-regioes">
+      <div class="grid-regioes" id="regioes"></div>
+    </section>
+
+    <section class="card tab-panel" id="tab-estados" hidden>
+      <div class="filters">
+        <label>Região
+          <select id="filtro-regiao"><option value="">Todas</option></select>
+        </label>
+        <label>Ordenar por
+          <select id="ordem-estados">
+            <option value="eleitores">Eleitorado</option>
+            <option value="apuradas">% urnas apuradas</option>
+            <option value="nome">Nome</option>
+            <option value="lider">Vantagem do 1º</option>
+          </select>
+        </label>
+      </div>
+      <div class="table-wrap"><table id="tabela-estados"></table></div>
+    </section>
+
+    <section class="card tab-panel" id="tab-cidades" hidden>
+      <div class="filters">
+        <label>Estado <select id="filtro-uf"></select></label>
+        <label>Buscar cidade <input id="busca-cidade" type="search" placeholder="Nome da cidade"></label>
+        <label>Ordenar por
+          <select id="ordem-cidades">
+            <option value="eleitores">Eleitorado</option>
+            <option value="apuradas">% urnas apuradas</option>
+            <option value="nome">Nome</option>
+          </select>
+        </label>
+      </div>
+      <p class="muted" id="cidades-status"></p>
+      <div class="table-wrap"><table id="tabela-cidades"></table></div>
+    </section>
+  </main>
+
+  <dialog id="dlg-eleicoes">
+    <h3>Eleições encontradas no TSE</h3>
+    <ul id="lista-eleicoes"></ul>
+    <form method="dialog"><button>Fechar</button></form>
+  </dialog>
+
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
