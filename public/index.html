@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
   <header class="topo">
@@ -28,6 +28,7 @@
         <label class="sr-only" for="recorte">Ver resultado de</label>
         <select id="recorte" class="recorte"></select>
         <button type="button" class="icone" id="btn-atualizar" title="Atualizar agora" aria-label="Atualizar agora">↻</button>
+        <button type="button" class="botao" id="btn-compartilhar" title="Copiar o link do que está na tela">Compartilhar</button>
       </div>
     </div>
     <div class="progresso" aria-live="polite">
@@ -84,6 +85,17 @@
         <h3>Resumo</h3>
         <ul class="insights" id="resumo"></ul>
       </div>
+      <div class="card" id="bloco-linha" hidden>
+        <div class="card-head">
+          <h3>Linha do tempo da apuração</h3>
+          <span class="nota-inline" id="linha-legenda"></span>
+        </div>
+        <div id="linha"></div>
+      </div>
+      <div class="card" id="bloco-eventos" hidden>
+        <h3>Acontecimentos</h3>
+        <ul class="eventos" id="eventos"></ul>
+      </div>
       <div class="card" id="bloco-regioes">
         <h3>Por região</h3>
         <div class="regioes" id="regioes"></div>
@@ -94,7 +106,12 @@
         <div id="projecao"></div>
       </div>
       <div class="card" id="bloco-comparacao" hidden>
-        <h3>1º turno × 2º turno</h3>
+        <div class="card-head">
+          <h3 id="titulo-comparacao">1º turno × 2º turno</h3>
+        </div>
+        <div class="mapas-lado" id="mapas-lado"></div>
+        <p class="viradas-resumo" id="viradas-resumo"></p>
+        <ul class="viradas" id="viradas"></ul>
         <p class="nota" id="comparacao-nota"></p>
         <div class="table-wrap"><table id="tabela-comparacao"></table></div>
       </div>
@@ -166,6 +183,7 @@
   </footer>
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script type="module" src="app.js?v=7"></script>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <script type="module" src="app.js?v=8"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js?v=7";
+import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js?v=8";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
@@ -11,6 +11,7 @@ const delta = (d) => `<span class="delta">${d >= 0.05 ? "▲ +" : d <= -0.05 ? "
 const hora = (d) => d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 const REFRESH_MS = 30_000;
+const REFRESH_DEMO_MS = 5_000; // a simulação anda rápido
 
 // ------------------------------------------------------------- configuração
 
@@ -260,6 +261,7 @@ const tipData = new WeakMap();
 const bindTip = (el, r, titulo) => el && r && tipData.set(el, { r, titulo });
 
 document.addEventListener("pointermove", (ev) => {
+  if (ev.target.closest?.(".linha-svg")) return; // a linha do tempo cuida do próprio tooltip
   const el = ev.target.closest?.("[data-tipkey]");
   const d = el && tipData.get(el);
   if (!d) { tip.hidden = true; return; }
@@ -277,6 +279,133 @@ document.addEventListener("pointermove", (ev) => {
   tip.style.left = Math.max(8, x) + "px";
   tip.style.top = Math.max(8, y) + "px";
 });
+
+// ------------------------------------------------------------- histórico: linha do tempo, ritmo e avisos
+
+// O TSE só mostra o momento atual da apuração. Cada leitura nova fica guardada aqui (e no navegador,
+// para sobreviver a um recarregamento); daí saem a linha do tempo, o ritmo e os avisos.
+const HIST_MAX = 720;
+const resumir = (r) => {
+  const [a, b] = r.candidatos;
+  return [r.apuradas, r.secoes, r.validos, a?.numero || "", a?.votos || 0, b?.numero || "", b?.votos || 0];
+};
+// a simulação recomeça a cada carregamento da página, então o histórico dela não é guardado
+const guarda = () => cfg.fonte !== "demo";
+
+function historico(d) {
+  if (!d.hist) {
+    d.hist = [];
+    d.eventos = [];
+    if (guarda()) {
+      try {
+        d.hist = JSON.parse(localStorage.getItem("hist|" + d.chave) || "[]");
+        d.eventos = JSON.parse(localStorage.getItem("ev|" + d.chave) || "[]");
+      } catch {}
+    }
+  }
+  return d.hist;
+}
+
+/** Guarda a leitura se ela tem urnas novas; devolve a anterior e a nova para comparar. */
+function registrar(d) {
+  if (!d.brasil?.apuradas) return null;
+  const h = historico(d);
+  let ant = h[h.length - 1];
+  if (ant && ant.u.br[0] === d.brasil.apuradas) return null;
+  if (ant && ant.u.br[0] > d.brasil.apuradas) { h.length = 0; ant = null; } // a contagem recomeçou
+  const novo = { t: Date.now(), u: { br: resumir(d.brasil) } };
+  for (const [uf, r] of Object.entries(d.estados)) if (r) novo.u[uf] = resumir(r);
+  h.push(novo);
+  if (h.length > HIST_MAX) h.splice(0, h.length - HIST_MAX);
+  if (guarda()) try { localStorage.setItem("hist|" + d.chave, JSON.stringify(h)); } catch {}
+  return ant ? { ant, novo } : null;
+}
+
+/** Um ponto do histórico no recorte: % apurado e votos dos candidatos. */
+function pontoRecorte(snap, rec) {
+  let apuradas = 0, secoes = 0, validos = 0;
+  const votos = new Map();
+  for (const k of rec ? ufsDoRecorte(rec) : ["br"]) {
+    const u = snap.u[k];
+    if (!u) continue;
+    apuradas += u[0]; secoes += u[1]; validos += u[2];
+    if (u[3]) votos.set(u[3], (votos.get(u[3]) || 0) + u[4]);
+    if (u[5]) votos.set(u[5], (votos.get(u[5]) || 0) + u[6]);
+  }
+  return secoes && validos ? { t: snap.t, x: pct(apuradas, secoes), validos, votos } : null;
+}
+
+/** Seções apuradas por minuto (últimos ~5 min) e a hora estimada para chegar a 100%. */
+function ritmo(d) {
+  const h = historico(d);
+  if (h.length < 2 || completo(d.brasil)) return null;
+  const fim = h[h.length - 1];
+  const ini = [...h].reverse().find((x) => fim.t - x.t >= 5 * 60_000) || h[0];
+  const min = (fim.t - ini.t) / 60_000;
+  const porMin = min >= 1 ? (fim.u.br[0] - ini.u.br[0]) / min : 0;
+  if (porMin <= 0) return null;
+  return { porMin, termino: new Date(fim.t + ((fim.u.br[1] - fim.u.br[0]) / porMin) * 60_000) };
+}
+
+const MARCOS = [10, 25, 50, 75, 90, 100];
+
+function nomeCand(d, numero, uf) {
+  const r = (uf && d.estados[uf]) || d.brasil;
+  return r?.candidatos.find((c) => c.numero === numero)?.nome || numero;
+}
+
+/** Compara duas leituras e descreve o que mudou: viradas, marcos e estados que terminaram. */
+function detectarEventos(d, ant, novo) {
+  const ev = [];
+  const b0 = ant.u.br, b1 = novo.u.br;
+  const p0 = pct(b0[0], b0[1]), p1 = pct(b1[0], b1[1]);
+  if (!governador()) {
+    if (b0[2] && b1[2] && b0[3] !== b1[3]) {
+      ev.push({ txt: `${nomeCand(d, b1[3])} passou à frente de ${nomeCand(d, b1[5])} no Brasil`, tipo: "Virada" });
+    }
+    for (const m of MARCOS) {
+      if (p0 < m && p1 >= m) {
+        ev.push({
+          tipo: m === 100 ? "Fim da apuração" : "Andamento",
+          txt: m === 100
+            ? `Apuração encerrada no Brasil: ${nomeCand(d, b1[3])} com ${pctStr(b1[4], b1[2])} dos válidos`
+            : `${m}% das urnas apuradas no Brasil: ${nomeCand(d, b1[3])} lidera com ${pctStr(b1[4], b1[2])}`,
+        });
+      }
+    }
+  }
+  for (const uf of Object.keys(UFS)) {
+    const a = ant.u[uf], n = novo.u[uf];
+    if (!a || !n || !n[2]) continue;
+    if (a[0] < a[1] && n[0] === n[1]) {
+      ev.push({ uf, tipo: UFS[uf][0], txt: `${UFS[uf][0]} terminou a apuração: ${nomeCand(d, n[3], uf)} venceu com ${pctStr(n[4], n[2])}` });
+    } else if (a[2] && a[3] !== n[3] && pct(n[0], n[1]) >= 20) {
+      // antes de 20% apurado a liderança num estado troca muito e viraria ruído
+      ev.push({ uf, tipo: "Virada", txt: `Virada em ${UFS[uf][0]}: ${nomeCand(d, n[3], uf)} passou à frente de ${nomeCand(d, n[5], uf)}` });
+    }
+  }
+  return ev.map((e) => ({ ...e, t: novo.t }));
+}
+
+function anotarEventos(d, ev) {
+  if (!ev.length) return;
+  historico(d);
+  d.eventos = [...ev.slice().reverse(), ...d.eventos].slice(0, 60);
+  if (guarda()) try { localStorage.setItem("ev|" + d.chave, JSON.stringify(d.eventos)); } catch {}
+  // até 3 avisos de uma vez na tela; o resto fica na lista de acontecimentos
+  ev.slice(-3).forEach((e) => toast(e.txt, { titulo: e.tipo, uf: e.uf }));
+}
+
+function toast(txt, { titulo = "", uf = "", ms = 9000, html = "" } = {}) {
+  const el = document.createElement("div");
+  el.className = "toast";
+  if (uf) el.dataset.uf = uf;
+  el.innerHTML = `${titulo ? `<small>${esc(titulo)}</small>` : ""}<span>${esc(txt)}</span>${html}`;
+  const box = $("#toasts");
+  box.append(el);
+  while (box.children.length > 3) box.firstElementChild.remove();
+  setTimeout(() => el.remove(), ms);
+}
 
 // ------------------------------------------------------------- topo
 
@@ -307,7 +436,13 @@ function renderTopo(d) {
   $("#pg-fill").style.width = p + "%";
   $("#pg-sub").textContent = r
     ? `${fmt.format(r.apuradas)} de ${fmt.format(r.secoes)} seções${r === d.brasil ? "" : " · " + nomeRecorte(cfg.recorte)}` +
-      (d.lido ? ` · lido às ${hora(d.lido)}` : "")
+      (d.lido ? ` · lido às ${hora(d.lido)}` : "") +
+      (() => {
+        const rt = !cfg.recorte && ritmo(d);
+        if (!rt) return "";
+        const fim = rt.termino.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        return ` · ${fmt.format(Math.round(rt.porMin))} seções/min · 100% por volta de ${fim}`;
+      })()
     : "";
 
   const aviso = $("#aviso");
@@ -505,6 +640,14 @@ async function renderMapa(d) {
   }
   if (seq !== mapaSeq) return;
 
+  const areas = areasMapa(d, rec, geo, nome);
+  el.classList.toggle("cidades", nome !== "br");
+  desenharMapa(el, geo, areas, corMapa, rec, nome);
+  renderLegendaMapa(areas, nome !== "br" && !d.cidades[rec]?.some((m) => m.r));
+}
+
+/** Áreas do mapa (estados ou cidades) com o resultado de cada uma num conjunto de dados. */
+function areasMapa(d, rec, geo, nome) {
   const areas = [];
   if (nome === "br") {
     const foco = new Set(ufsDoRecorte(rec));
@@ -522,13 +665,15 @@ async function renderMapa(d) {
       areas.push({ chave: cdi, path, r: m?.r, titulo: m ? m.nome : "" });
     });
   }
-  el.classList.toggle("cidades", nome !== "br");
+  return areas;
+}
+
+function desenharMapa(el, geo, areas, corFn, rec, nome) {
   el.innerHTML =
     `<svg viewBox="${geo.viewBox}" role="img" aria-label="Mapa de ${esc(nomeRecorte(rec))}">` +
-    areas.map((u) => `<path data-tipkey="1" data-chave="${u.chave}"${u.fora ? ' class="fora"' : ""} d="${u.path}" style="fill:${corMapa(u.r)}"></path>`).join("") +
+    areas.map((u) => `<path data-tipkey="1" data-chave="${u.chave}"${u.fora ? ' class="fora"' : ""} d="${u.path}" style="fill:${corFn(u.r)}"></path>`).join("") +
     `</svg>`;
   el.querySelectorAll("path").forEach((p, i) => bindTip(p, areas[i].r, areas[i].titulo));
-
   // região: aproxima o mapa nos estados do recorte
   if (nome === "br" && rec && rec !== "ZZ") {
     const focos = [...el.querySelectorAll("path:not(.fora)")];
@@ -542,8 +687,9 @@ async function renderMapa(d) {
       el.querySelector("svg").setAttribute("viewBox", `${x0 - pad} ${y0 - pad} ${x1 - x0 + 2 * pad} ${y1 - y0 + 2 * pad}`);
     }
   }
-  renderLegendaMapa(areas, nome !== "br" && !d.cidades[rec]?.some((m) => m.r));
 }
+
+const corVencedor = (r) => (r?.validos && r.candidatos[0] ? cor(r.candidatos[0].numero) : "var(--track)");
 
 // ------------------------------------------------------------- análises
 
@@ -612,6 +758,91 @@ function renderResumo(d, d1) {
     }
   }
   $("#resumo").innerHTML = itens.map((t) => `<li>${t}</li>`).join("");
+}
+
+/** Gráfico do % dos válidos dos dois primeiros conforme as urnas foram apuradas. */
+function renderLinhaTempo(d) {
+  const bloco = $("#bloco-linha");
+  const el = $("#linha");
+  const r = resultadoRecorte(d);
+  if (!r || !mostraCandidatos() || r.candidatos.length < 2) { bloco.hidden = true; return; }
+  const pts = historico(d).map((x) => pontoRecorte(x, cfg.recorte)).filter(Boolean);
+  if (pts.length < 2) {
+    // apuração já encerrada e nada guardado: não há o que mostrar
+    bloco.hidden = completo(d.brasil);
+    $("#linha-legenda").innerHTML = "";
+    el.innerHTML = `<p class="nota">A linha do tempo vai sendo montada enquanto o painel fica aberto durante a apuração: cada atualização vira um ponto. ${d.brasil?.apuradas ? "Já começou a contar." : "Começa quando as primeiras urnas forem apuradas."}</p>`;
+    return;
+  }
+  bloco.hidden = false;
+  const cands = r.candidatos.slice(0, 2).sort(porSlot);
+  const series = cands.map((c) => ({ c, pts: pts.map((p) => ({ x: p.x, y: pct(p.votos.get(c.numero) || 0, p.validos), t: p.t })) }));
+  $("#linha-legenda").innerHTML =
+    cands.map((c) => `<span><i class="swatch" style="background:${cor(c.numero)}"></i> ${esc(nomeCurto(c))}</span>`).join("") +
+    `<span class="muted">% dos válidos × % de urnas apuradas</span>`;
+
+  const W = Math.max(300, el.clientWidth || 700), H = W < 520 ? 220 : 260;
+  const m = { l: 40, r: W < 520 ? 56 : 160, t: 12, b: 28 };
+  const ys = series.flatMap((s) => s.pts.map((p) => p.y));
+  let y0 = Math.min(...ys, 50), y1 = Math.max(...ys, 50);
+  const folga = Math.max(1, (y1 - y0) * 0.15);
+  y0 = Math.max(0, Math.floor(y0 - folga)); y1 = Math.min(100, Math.ceil(y1 + folga));
+  const passo = [1, 2, 5, 10, 20].find((p) => (y1 - y0) / p <= 6) || 25;
+  const X = (x) => m.l + (x / 100) * (W - m.l - m.r);
+  const Y = (y) => m.t + (1 - (y - y0) / (y1 - y0)) * (H - m.t - m.b);
+  let grade = "";
+  for (let y = Math.ceil(y0 / passo) * passo; y <= y1; y += passo) {
+    grade += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(y)}" y2="${Y(y)}"></line><text x="${m.l - 6}" y="${Y(y) + 4}" text-anchor="end">${y}%</text>`;
+  }
+  const eixoX = [0, 25, 50, 75, 100]
+    .map((x) => `<text x="${X(x)}" y="${H - 8}" text-anchor="${x === 0 ? "start" : x === 100 ? "end" : "middle"}">${x}%${x === 100 && W >= 520 ? " das urnas" : ""}</text>`)
+    .join("");
+  const linhas = series
+    .map(({ c, pts: ps }) => {
+      const d0 = ps.map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join("");
+      const u = ps[ps.length - 1];
+      const nome = c.nome.length > 14 ? c.nome.slice(0, 13) + "…" : c.nome;
+      const rot = W >= 520 ? `${esc(nome)} ${pctFmt.format(u.y)}%` : `${ppFmt.format(u.y)}%`;
+      return `<path class="serie" d="${d0}" style="stroke:${cor(c.numero)}"></path>
+        <circle class="ponto" cx="${X(u.x)}" cy="${Y(u.y)}" r="4.5" style="fill:${cor(c.numero)}"></circle>
+        <text class="rotulo" x="${X(u.x) + 8}" y="${Y(u.y) + 4}">${rot}</text>`;
+    })
+    .join("");
+  el.innerHTML = `<svg class="linha-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Linha do tempo da apuração">
+    <g class="grade">${grade}</g>
+    <line class="meio-linha" x1="${m.l}" x2="${W - m.r}" y1="${Y(50)}" y2="${Y(50)}"></line>
+    ${eixoX}${linhas}
+    <line class="mira" y1="${m.t}" y2="${H - m.b}" x1="0" x2="0" visibility="hidden"></line>
+    <rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"></rect>
+  </svg>`;
+
+  // passar o mouse mostra o momento mais próximo
+  const svg = el.querySelector("svg");
+  const mira = svg.querySelector(".mira");
+  svg.addEventListener("pointermove", (ev) => {
+    const box = svg.getBoundingClientRect();
+    const xp = ((ev.clientX - box.left) / box.width) * W;
+    const alvo = ((xp - m.l) / (W - m.l - m.r)) * 100;
+    let i = 0;
+    pts.forEach((p, k) => { if (Math.abs(p.x - alvo) < Math.abs(pts[i].x - alvo)) i = k; });
+    mira.setAttribute("x1", X(pts[i].x)); mira.setAttribute("x2", X(pts[i].x)); mira.setAttribute("visibility", "visible");
+    tip.innerHTML =
+      `<strong>${pctFmt.format(pts[i].x)}% das urnas · ${hora(new Date(pts[i].t))}</strong>` +
+      series.map(({ c, pts: ps }) => `<div><span>${sw(c)} ${esc(nomeCurto(c))}</span><b>${pctFmt.format(ps[i].y)}%</b></div>`).join("");
+    tip.hidden = false;
+    tip.style.left = Math.max(8, Math.min(ev.clientX + 14, innerWidth - tip.offsetWidth - 8)) + "px";
+    tip.style.top = Math.max(8, Math.min(ev.clientY + 14, innerHeight - tip.offsetHeight - 8)) + "px";
+  });
+  svg.addEventListener("pointerleave", () => { tip.hidden = true; mira.setAttribute("visibility", "hidden"); });
+}
+
+function renderEventos(d) {
+  historico(d);
+  const evs = (d.eventos || []).filter((e) => !cfg.recorte || !e.uf || ufsDoRecorte(cfg.recorte).includes(e.uf));
+  $("#bloco-eventos").hidden = !evs.length;
+  $("#eventos").innerHTML = evs
+    .map((e) => `<li${e.uf ? ` data-uf="${e.uf}"` : ""}><time>${new Date(e.t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</time><span>${esc(e.txt)}</span></li>`)
+    .join("");
 }
 
 function renderRegioes(d) {
@@ -684,6 +915,8 @@ function renderComparacao(d, d1) {
   }
   $("#comparacao-nota").textContent =
     "Percentual dos votos válidos de cada candidato no 1º turno e no 2º (até agora). Clique num estado para filtrar.";
+  renderMapasLado(d, d1);
+  renderViradas(d, d1);
   const celula = (r1, r2, c) => {
     if (!c) return "<td></td><td></td>";
     const p1 = pct(votosDe(r1, c.numero), r1.validos), p2 = pct(votosDe(r2, c.numero), r2.validos);
@@ -707,6 +940,51 @@ function renderComparacao(d, d1) {
       })
       .join("") +
     "</tbody>";
+}
+
+let ladoSeq = 0;
+
+/** Dois mapas pequenos, quem ganhou no 1º turno e quem ganha agora, no mesmo recorte. */
+async function renderMapasLado(d, d1) {
+  const rec = cfg.recorte;
+  const nome = ehUF(rec) && rec !== "ZZ" ? rec.toLowerCase() : "br";
+  const box = $("#mapas-lado");
+  const seq = ++ladoSeq;
+  let geo;
+  try { geo = await carregarMapa(nome); } catch { box.innerHTML = ""; return; }
+  if (seq !== ladoSeq) return;
+  box.classList.toggle("cidades", nome !== "br");
+  box.innerHTML = `<figure><figcaption>1º turno · 04/10</figcaption><div data-lado="1"></div></figure>
+    <figure><figcaption>2º turno · ${completo(resultadoRecorte(d)) ? "resultado" : "agora"}</figcaption><div data-lado="2"></div></figure>`;
+  desenharMapa(box.querySelector('[data-lado="1"]'), geo, areasMapa(d1, rec, geo, nome), corVencedor, rec, nome);
+  desenharMapa(box.querySelector('[data-lado="2"]'), geo, areasMapa(d, rec, geo, nome), corVencedor, rec, nome);
+}
+
+function renderViradas(d, d1) {
+  const rec = cfg.recorte;
+  const cidades = ehUF(rec) && rec !== "ZZ";
+  const pares = cidades
+    ? (d.cidades[rec] || []).map((m) => ({ nome: m.nome, r2: m.r, r1: (d1.cidades[rec] || []).find((x) => x.codigo === m.codigo)?.r }))
+    : ufsDoRecorte(rec).map((uf) => ({ uf, nome: UFS[uf][0], r2: d.estados[uf], r1: d1.estados[uf] }));
+  const validos = pares.filter((p) => p.r1?.validos && p.r2?.validos);
+  const tipo = cidades ? "cidades" : "estados";
+  if (!validos.length) {
+    $("#viradas-resumo").textContent = cidades && !d1.cidades[rec] ? "Carregando as cidades do 1º turno…" : "As viradas aparecem quando o 2º turno tiver votos apurados.";
+    $("#viradas").innerHTML = "";
+    return;
+  }
+  const viradas = validos.filter((p) => p.r1.candidatos[0].numero !== p.r2.candidatos[0].numero);
+  $("#viradas-resumo").innerHTML = viradas.length
+    ? `<b>${viradas.length}</b> de ${validos.length} ${tipo} mudaram de vencedor em relação ao 1º turno${completo(resultadoRecorte(d)) ? "" : " (até agora)"}:`
+    : `Nenhum dos ${validos.length} ${tipo} mudou de vencedor em relação ao 1º turno${completo(resultadoRecorte(d)) ? "" : " até agora"}.`;
+  $("#viradas").innerHTML = viradas
+    .sort((a, b) => b.r2.validos - a.r2.validos)
+    .slice(0, 24)
+    .map((p) => {
+      const a = p.r1.candidatos[0], b = p.r2.candidatos[0];
+      return `<li${p.uf ? ` data-uf="${p.uf}"` : ""}><b>${esc(p.uf || p.nome)}</b> ${sw(a)} → ${sw(b)} ${esc(nomeCurto(b))}</li>`;
+    })
+    .join("");
 }
 
 function itemRanking(u, extra) {
@@ -869,6 +1147,8 @@ function renderAll() {
   renderMapa(d);
   if (aba === "analises") {
     renderResumo(d, d1);
+    renderLinhaTempo(d);
+    renderEventos(d);
     renderRegioes(d);
     renderProjecao(d, d1);
     renderComparacao(d, d1);
@@ -915,13 +1195,20 @@ async function atualizar({ forcar = false } = {}) {
     await Promise.all(tarefas.map((p) => p.catch(() => {})));
     if (gen === geracao) carregandoAgora = false;
   }
+  const mudou = registrar(d);
   if (gen !== geracao) return;
   fixarCores(d);
+  if (mudou) anotarEventos(d, detectarEventos(d, mudou.ant, mudou.novo));
   renderAll();
 
   const uf = ufDasCidades();
   if (uf && d.brasil && (!d.cidades[uf] || forcar || !completo(d.estados[uf]) || d.cidades[uf].some((m) => !m.r))) {
     await carregarCidades(d, uf, () => atual() === d && ufDasCidades() === uf).catch(() => {});
+    if (atual() === d) renderAll();
+  }
+  // cidades do 1º turno, para os mapas lado a lado e as viradas (baixadas uma vez só)
+  if (uf && d1?.brasil && (!d1.cidades[uf] || d1.cidades[uf].some((m) => !m.r))) {
+    await carregarCidades(d1, uf, () => ufDasCidades() === uf).catch(() => {});
     if (atual() === d) renderAll();
   }
 }
@@ -932,9 +1219,18 @@ function escolherRecorte(rec) {
   atualizar();
 }
 
-setInterval(() => {
-  if (!document.hidden) atualizar();
-}, REFRESH_MS);
+(function ciclo() {
+  setTimeout(async () => {
+    if (!document.hidden) await atualizar().catch(() => {});
+    ciclo();
+  }, cfg.fonte === "demo" ? REFRESH_DEMO_MS : REFRESH_MS);
+})();
+let larguraAnterior = innerWidth;
+addEventListener("resize", () => {
+  if (Math.abs(innerWidth - larguraAnterior) < 40) return;
+  larguraAnterior = innerWidth;
+  if (aba === "analises") renderLinhaTempo(atual());
+});
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) atualizar();
 });
@@ -988,30 +1284,63 @@ $("#mapa").addEventListener("click", (ev) => {
   const p = ev.target.closest("path[data-chave]");
   if (p && UFS[p.dataset.chave] && (!ehUF(cfg.recorte) || cfg.recorte === "ZZ")) escolherRecorte(p.dataset.chave);
 });
-for (const sel of ["#tabela-estados", "#tabela-comparacao", "#placar"]) {
+for (const sel of ["#tabela-estados", "#tabela-comparacao", "#placar", "#viradas", "#eventos", "#toasts"]) {
   $(sel).addEventListener("click", (ev) => {
     const el = ev.target.closest("[data-uf]");
     if (el) escolherRecorte(el.dataset.uf);
   });
 }
+$("#mapas-lado").addEventListener("click", (ev) => {
+  const p = ev.target.closest("path[data-chave]");
+  if (p && UFS[p.dataset.chave] && !ehUF(cfg.recorte)) escolherRecorte(p.dataset.chave);
+});
 $("#regioes").addEventListener("click", (ev) => {
   const el = ev.target.closest("[data-regiao]");
   if (el) escolherRecorte("R:" + el.dataset.regiao);
 });
 
+function abrirAba(nome) {
+  aba = nome;
+  document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", String(x.dataset.tab === nome)));
+  document.querySelectorAll(".painel").forEach((p) => (p.hidden = p.id !== "tab-" + nome));
+}
 document.querySelectorAll(".tabs button").forEach((b) =>
   b.addEventListener("click", () => {
-    aba = b.dataset.tab;
-    document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
-    document.querySelectorAll(".painel").forEach((p) => (p.hidden = p.id !== "tab-" + aba));
+    abrirAba(b.dataset.tab);
     renderAll();
   }),
 );
+
+// link do que está na tela: turno, cargo, recorte, modo do mapa e aba
+$("#btn-compartilhar").addEventListener("click", async () => {
+  const url = new URL(location.pathname, location.origin);
+  url.searchParams.set("turno", cfg.turno);
+  url.searchParams.set("cargo", cfg.cargo);
+  if (cfg.recorte) url.searchParams.set("recorte", cfg.recorte);
+  if (modoEscolhido) url.searchParams.set("mapa", modoEscolhido);
+  if (aba !== "analises") url.searchParams.set("aba", aba);
+  if (cfg.fonte === "demo") url.searchParams.set("fonte", "demo");
+  const link = url.toString();
+  const texto = `Apuração 2026 · ${CARGOS[cfg.cargo]} · ${NOME_TURNO[cfg.turno]} · ${nomeRecorte(cfg.recorte)}`;
+  if (navigator.share && matchMedia("(pointer: coarse)").matches) {
+    try { await navigator.share({ title: texto, url: link }); return; } catch (e) { if (e.name === "AbortError") return; }
+  }
+  try {
+    await navigator.clipboard.writeText(link);
+    toast("Link copiado. É só colar na conversa.", { titulo: texto, ms: 5000 });
+  } catch {
+    toast("Copie o link abaixo:", { titulo: texto, ms: 15000, html: `<span class="link-copia">${esc(link)}</span>` });
+  }
+});
 $("#ordem-estados").addEventListener("change", () => renderEstados(atual()));
 $("#ordem-cidades").addEventListener("change", () => renderCidades(atual()));
 $("#busca-cidade").addEventListener("input", () => renderCidades(atual()));
 
 // ------------------------------------------------------------- início
+
+// o que veio no link compartilhado
+if (["ganha", "vantagem", "apuradas"].includes(params.get("mapa"))) modoEscolhido = params.get("mapa");
+if (["analises", "estados", "cidades"].includes(params.get("aba"))) abrirAba(params.get("aba"));
 
 await detectarProxy();
 atualizar();
