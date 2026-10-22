@@ -8,10 +8,15 @@ Painel para acompanhar a apuração em tempo real com os dados públicos do TSE
 - **Placar**: no 2º turno, frente a frente; no 1º, os quatro primeiros e os demais agrupados.
 - **Mapa** do Brasil por estado ou, num estado, por cidade: cor de quem lidera (mais forte =
   vantagem maior) ou % de urnas apuradas. Clique num estado para abrir as cidades dele.
-- **Chance de virada**: estima, pelo que falta apurar em cada estado (ou cidade), a chance de o
-  2º colocado passar o 1º e a faixa da margem final. Nos lugares com pouco apurado, usa também o
-  resultado de 2022 do lugar, corrigido pela mudança já vista no país. Milhares de sorteios com
-  margem de erro que encolhe com a apuração. Estimativa simples, não é previsão oficial.
+- **Chance de virada** (`public/modelo.js`): no 2º turno, a conta é feita cidade por cidade com o
+  1º turno de 2026 como referência (`public/base/`). Em cada estado, compara o que já foi apurado com
+  o que as mesmas cidades deram no 1º turno; essa mudança, que já desconta quais cidades foram contadas
+  primeiro, é aplicada às cidades que faltam (o índice `{uf}-e{eleicao}-ab.json` do TSE diz quantas urnas
+  cada cidade apurou). Depois, milhares de sorteios com margem de erro que encolhe com a apuração.
+  Testada com o 2º turno de 2022 (`node scripts/testar-chance.mjs`): em 40 disputas e três ordens de
+  apuração, nunca deu menos de 5% a quem acabou vencendo, e no cenário de 2022 apontou a virada do Lula
+  com 90% de chance quando ele ainda perdia por mais de 7 pontos. Sem a base (simulação, eleição avulsa),
+  o painel usa uma conta mais simples, por estado. Estimativa estatística, não é previsão oficial.
 - **Linha do tempo** (% dos válidos × % de urnas apuradas), **ritmo** (seções por minuto e hora
   estimada para 100%) e **avisos** de virada, marcos de apuração e estados que terminaram. As
   leituras ficam guardadas no navegador enquanto o painel está aberto.
@@ -87,6 +92,12 @@ comparecimento, `e.a` abstenção, `v.vb` brancos, `v.tvn` nulos, `v.vv` válido
 `public/mapas/` tem os contornos já convertidos em SVG: `br.json` (estados) e um arquivo por estado
 com as cidades, ligadas ao resultado pelo código IBGE (`cdi` na lista de cidades do TSE). Foram gerados
 com `scripts/gerar-mapas.js` a partir das malhas municipais do IBGE (pacote npm `ibge-cidades-com-poligonos`).
+
+## Referência do 1º turno de 2026
+
+`public/base/presidente-2026-t1.json` e `governador-2026-t1.json` têm, por cidade, as seções, os votos
+válidos e os votos dos dois candidatos do 2º turno no 1º turno. Gerados com
+`NODE_USE_ENV_PROXY=1 node scripts/gerar-base-1turno.mjs`.
 
 ## Dados de 2022
 

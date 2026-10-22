@@ -1,4 +1,5 @@
-import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=10";
+import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=11";
+import { chancePorCidades, PERFIS } from "./modelo.js?v=11";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
@@ -114,11 +115,36 @@ function carregarEstados(d) {
     ]);
     ufs.forEach((uf, i) => (d.estados[uf] = est[i]));
     d.brasil = br || (est.some(Boolean) ? aggregate(est) : null);
+    if (usaCidades(d)) await carregarAndamento(d);
     d.carregado = true;
     d.lido = new Date();
     d.erro = d.brasil ? null : erroBr?.semAcesso ? erroBr.message : "semdados";
   })().finally(() => (d.emCurso = null));
   return d.emCurso;
+}
+
+// ---- referência da chance de virada: 1º turno por cidade e quantas urnas cada cidade já apurou
+
+/** A conta por cidade vale no 2º turno do TSE (com a base de public/base/) e no replay de 2022. */
+const usaCidades = (d) => d.turno === "2" && (d.fonte.base1Turno || (cfg.fonte === "tse" && !ELEICAO_URL));
+
+function carregarBase(d) {
+  d.basePromessa ||= (d.fonte.base1Turno
+    ? d.fonte.base1Turno()
+    : fetch(`base/${d.cargo === "0001" ? "presidente" : "governador"}-2026-t1.json`).then((r) => (r.ok ? r.json() : null))
+  )
+    .then((b) => (d.base = b))
+    .catch(() => (d.basePromessa = null));
+  return d.basePromessa;
+}
+
+/** Índice por cidade do TSE (um arquivo por estado), só dos estados com apuração em andamento. */
+async function carregarAndamento(d) {
+  d.andamento ||= {};
+  const ufs = Object.keys(UFS).filter((uf) => d.estados[uf]?.apuradas && !completo(d.estados[uf]));
+  await Promise.all(ufs.map(async (uf) => {
+    try { d.andamento[uf] = await d.fonte.andamentoCidades(uf); } catch {}
+  }));
 }
 
 async function pool(items, fn, n) {
@@ -148,7 +174,7 @@ function carregarCidades(d, uf, ativo) {
     if (d.fonte.andamentoCidades) {
       try {
         const andamento = await d.fonte.andamentoCidades(uf);
-        alvo = cidades.filter((m) => !m.r || andamento.get(m.codigo) !== m.r.apuradas);
+        alvo = cidades.filter((m) => !m.r || andamento.get(m.codigo)?.st !== m.r.apuradas);
       } catch {}
     }
     await pool(
@@ -364,6 +390,52 @@ let memoVirada = { chave: "", valor: null };
 function chanceVirada(d) {
   const r = resultadoRecorte(d);
   if (!r?.apuradas || completo(r) || !mostraCandidatos() || r.candidatos.length < 2) return null;
+  return chancePorCidade(d, r) || chancePorEstado(d, r);
+}
+
+let memoCidade = { chave: "", valor: null };
+
+/**
+ * Conta principal (public/modelo.js): cidade por cidade, com o 1º turno como referência.
+ * Devolve null quando falta a base ou o andamento de algum estado do recorte.
+ */
+function chancePorCidade(d, r) {
+  if (!usaCidades(d) || !d.base) return null;
+  const [A, B] = r.candidatos;
+  const chave = `${d.chave}|${cfg.recorte}|${d.lido?.getTime()}|${r.apuradas}|${A.numero}`;
+  if (memoCidade.chave === chave) return memoCidade.valor;
+  const montar = (uf) => {
+    const e = d.estados[uf], bu = d.base.ufs[uf];
+    if (!e || !bu) return null;
+    const iA = bu.candidatos.indexOf(A.numero), iB = bu.candidatos.indexOf(B.numero);
+    if (iA < 0 || iB < 0) return undefined; // candidatos diferentes da base: não dá para usar
+    const fim = completo(e), zero = !e.apuradas, and = d.andamento?.[uf];
+    if (!fim && !zero && !and) return undefined;
+    const cidades = Object.entries(bu.cidades).map(([cod, x]) => {
+      const a1 = x[2 + iA], b1 = x[2 + iB], c = and?.get(cod);
+      return {
+        f: fim ? 1 : zero ? 0 : (c?.st || 0) / Math.max(x[0], c?.ts || 0, 1),
+        v: x[1],
+        p: a1 + b1 ? a1 / (a1 + b1) : 0.5,
+      };
+    });
+    return { a: votosDe(e, A.numero), b: votosDe(e, B.numero), cidades };
+  };
+  const doRecorte = ufsDoRecorte(cfg.recorte).filter((uf) => d.estados[uf]).map(montar);
+  if (!doRecorte.length || doRecorte.some((x) => x === undefined)) return null;
+  const estados = doRecorte.filter(Boolean);
+  const todos = governador() ? estados : Object.keys(UFS).map(montar).filter(Boolean);
+  const res = chancePorCidades({
+    a: votosDe(r, A.numero), b: votosDe(r, B.numero), estados, paraMudanca: todos,
+    frac: r.apuradas / r.secoes, semente: r.apuradas * 31 + 7, erro: governador() ? PERFIS.governador : PERFIS.presidente,
+  });
+  const valor = { prob: 1 - res.probA, A, B, media: res.media, baixo: res.baixo, alto: res.alto, porCidade: true };
+  memoCidade = { chave, valor };
+  return valor;
+}
+
+/** Conta reserva, por estado (simulação, eleição avulsa ou quando falta o índice por cidade). */
+function chancePorEstado(d, r) {
   const us = unidades(d);
   if (!us?.length) return null;
   const chave = `${d.chave}|${cfg.recorte}|${r.apuradas}|${us.length}|${us.reduce((t, u) => t + u.r.apuradas, 0)}`;
@@ -452,7 +524,7 @@ function htmlChance(cv) {
         <span class="chance-num">${txtP}</span>
       </div>
       <div class="chance-barra" role="img" aria-label="Chance de virada de ${txtP}"><i style="width:${Math.max(1, p)}%;background:${cor(cv.B.numero)}"></i></div>
-      <div class="chance-sub"><span>${rotuloChance(cv.prob)}</span>
+      <div class="chance-sub"><span>${rotuloChance(cv.prob)} · ${cv.porCidade ? "calculada cidade a cidade" : "calculada por estado"}</span>
         <span>margem final estimada de ${esc(nomeCurto(cv.A))}: ${ppSinal(cv.baixo)} a ${ppSinal(cv.alto)} p.p.</span></div>
     </div>`;
 }
@@ -1433,6 +1505,7 @@ async function atualizar({ forcar = false } = {}) {
   if (d1 && !d1.carregado) tarefas.push(carregarEstados(d1));
   const d22 = conjunto2022(cfg.turno, cfg.cargo);
   if (!d22.carregado) tarefas.push(d22.pronto);
+  if (usaCidades(d) && !d.base) tarefas.push(carregarBase(d));
   if (tarefas.length) {
     carregandoAgora = true;
     renderTopo(d);
