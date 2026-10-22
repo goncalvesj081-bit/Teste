@@ -1,4 +1,4 @@
-import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js?v=5";
+import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js?v=6";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
@@ -433,7 +433,11 @@ function carregarMapa(nome) {
   return mapas.get(nome);
 }
 
-/** Cor de uma área: quem lidera (mais forte = vantagem maior) ou % de urnas apuradas. */
+/**
+ * Cor de uma área: quem lidera ou % de urnas apuradas. Vantagem pequena = tom claro da cor do
+ * candidato, vantagem grande = cor cheia (clarear em vez de escurecer evita o vermelho virar marrom).
+ */
+const tom = (c, p) => `color-mix(in oklch, ${c} ${p}%, white)`;
 function corMapa(r) {
   if (!r || !r.secoes) return "var(--track)";
   if (modoMapa === "apuradas") {
@@ -443,7 +447,7 @@ function corMapa(r) {
   const a = r.candidatos[0];
   if (!a || !r.validos) return "var(--track)";
   const m = Math.min(margem(r), 30);
-  return `color-mix(in srgb, ${cor(a.numero)} ${Math.round(38 + (m / 30) * 62)}%, var(--track))`;
+  return tom(cor(a.numero), Math.round(40 + (m / 30) * 60));
 }
 
 function renderLegendaMapa(areas, carregandoCidades) {
@@ -465,7 +469,7 @@ function renderLegendaMapa(areas, carregandoCidades) {
   const rotulo = (c) => esc(governador() && !ehUF(cfg.recorte) ? c.partido : nomeCurto(c));
   const itens = [...lideres.values()]
     .sort(porSlot)
-    .map((c) => `<span><i class="grad" style="background:linear-gradient(90deg, color-mix(in srgb, ${cor(c.numero)} 38%, var(--track)), ${cor(c.numero)})"></i>${rotulo(c)}</span>`);
+    .map((c) => `<span><i class="grad" style="background:linear-gradient(90deg, ${tom(cor(c.numero), 40)}, ${cor(c.numero)})"></i>${rotulo(c)}</span>`);
   el.innerHTML = itens.length
     ? itens.join("") + `<span class="muted">cor mais forte = vantagem maior</span>`
     : `<span>O mapa ganha cor conforme as urnas são apuradas.</span>`;

@@ -21,9 +21,9 @@
   --series-3: #1baf7a;
   --series-4: #eda100;
   --series-5: #e87ba4;
-  --series-6: #008300;
+  --series-6: #16a34a;
   --series-7: #6250d6;
-  --series-8: #e34948;
+  --series-8: #dc2626;
   --series-other: #a3a9b5;
   --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --radius: 12px;
@@ -50,9 +50,9 @@
     --series-3: #199e70;
     --series-4: #c98500;
     --series-5: #d55181;
-    --series-6: #2ea043;
+    --series-6: #22c55e;
     --series-7: #9085e9;
-    --series-8: #e66767;
+    --series-8: #ef4444;
     --series-other: #5f6776;
   }
 }
@@ -77,9 +77,9 @@
   --series-3: #199e70;
   --series-4: #c98500;
   --series-5: #d55181;
-  --series-6: #2ea043;
+  --series-6: #22c55e;
   --series-7: #9085e9;
-  --series-8: #e66767;
+  --series-8: #ef4444;
   --series-other: #5f6776;
 }
 
