@@ -1,4 +1,4 @@
-import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js?v=6";
+import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js?v=7";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
@@ -418,7 +418,8 @@ function renderMini(d) {
 // ------------------------------------------------------------- mapa
 
 const mapas = new Map(); // "br" ou uf -> Promise<{ viewBox, ufs | mun }>
-let modoMapa = "lider";
+let modoMapa = "ganha";
+let modoEscolhido = null; // o que a pessoa clicou; sem clique: vantagem durante a apuração, quem ganha depois
 let mapaSeq = 0;
 
 function carregarMapa(nome) {
@@ -434,10 +435,16 @@ function carregarMapa(nome) {
 }
 
 /**
- * Cor de uma área: quem lidera ou % de urnas apuradas. Vantagem pequena = tom claro da cor do
- * candidato, vantagem grande = cor cheia (clarear em vez de escurecer evita o vermelho virar marrom).
+ * Cor de uma área, em três modos: quem ganha (cor cheia), vantagem (três faixas de tom da cor de
+ * quem ganha; clarear em vez de escurecer evita o vermelho virar marrom) ou % de urnas apuradas.
  */
 const tom = (c, p) => `color-mix(in oklch, ${c} ${p}%, white)`;
+const FAIXAS = [
+  { ate: 5, tom: 62, rotulo: "até 5 p.p." },
+  { ate: 15, tom: 82, rotulo: "5 a 15 p.p." },
+  { ate: Infinity, tom: 100, rotulo: "mais de 15 p.p." },
+];
+const faixa = (m) => FAIXAS.find((f) => m <= f.ate);
 function corMapa(r) {
   if (!r || !r.secoes) return "var(--track)";
   if (modoMapa === "apuradas") {
@@ -446,8 +453,7 @@ function corMapa(r) {
   }
   const a = r.candidatos[0];
   if (!a || !r.validos) return "var(--track)";
-  const m = Math.min(margem(r), 30);
-  return tom(cor(a.numero), Math.round(40 + (m / 30) * 60));
+  return modoMapa === "vantagem" ? tom(cor(a.numero), faixa(margem(r)).tom) : cor(a.numero);
 }
 
 function renderLegendaMapa(areas, carregandoCidades) {
@@ -469,13 +475,22 @@ function renderLegendaMapa(areas, carregandoCidades) {
   const rotulo = (c) => esc(governador() && !ehUF(cfg.recorte) ? c.partido : nomeCurto(c));
   const itens = [...lideres.values()]
     .sort(porSlot)
-    .map((c) => `<span><i class="grad" style="background:linear-gradient(90deg, ${tom(cor(c.numero), 40)}, ${cor(c.numero)})"></i>${rotulo(c)}</span>`);
+    .map((c) =>
+      modoMapa === "vantagem"
+        ? `<span class="faixas">${FAIXAS.map((f) => `<i style="background:${tom(cor(c.numero), f.tom)}"></i>`).join("")}${rotulo(c)}</span>`
+        : `<span><i class="swatch" style="background:${cor(c.numero)}"></i> ${rotulo(c)}</span>`,
+    );
+  const nota = modoMapa === "vantagem"
+    ? `Vantagem: ${FAIXAS.map((f) => f.rotulo).join(" · ")}`
+    : `Quem ganha em cada ${ehUF(cfg.recorte) ? "cidade" : "estado"}`;
   el.innerHTML = itens.length
-    ? itens.join("") + `<span class="muted">cor mais forte = vantagem maior</span>`
+    ? itens.join("") + `<span class="muted">${nota}</span>`
     : `<span>O mapa ganha cor conforme as urnas são apuradas.</span>`;
 }
 
 async function renderMapa(d) {
+  modoMapa = modoEscolhido || (d.brasil?.apuradas && !completo(d.brasil) ? "vantagem" : "ganha");
+  document.querySelectorAll("#seg-mapa button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.v === modoMapa)));
   const rec = cfg.recorte;
   const el = $("#mapa");
   const seq = ++mapaSeq;
@@ -963,8 +978,7 @@ $("#btn-atualizar").addEventListener("click", () => atualizar({ forcar: true }))
 
 document.querySelectorAll("#seg-mapa button").forEach((b) =>
   b.addEventListener("click", () => {
-    modoMapa = b.dataset.v;
-    document.querySelectorAll("#seg-mapa button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    modoEscolhido = b.dataset.v;
     renderMapa(atual());
   }),
 );

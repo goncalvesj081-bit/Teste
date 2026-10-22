@@ -205,6 +205,10 @@ details.outros summary { cursor: pointer; padding: 10px 0 4px; font-size: 13px; 
 .mapa .carregando { color: var(--text-2); font-size: 13px; }
 .mapa-rodape { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin-top: 10px; }
 .mapa-legenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--text-2); align-items: center; }
+.mapa-legenda .faixas { display: inline-flex; align-items: center; gap: 2px; }
+.mapa-legenda .faixas i { width: 16px; height: 10px; display: inline-block; }
+.mapa-legenda .faixas i:first-child { border-radius: 3px 0 0 3px; }
+.mapa-legenda .faixas i:nth-child(3) { border-radius: 0 3px 3px 0; margin-right: 6px; }
 .mapa-legenda .grad { display: inline-block; width: 56px; height: 8px; border-radius: 4px; vertical-align: middle; margin-right: 6px; }
 .chip { font-size: 12px; padding: 3px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); }
 
