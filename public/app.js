@@ -12,7 +12,9 @@ const CONCORRENCIA = 8;
 
 // ------------------------------------------------------------- configuração
 
-const DEFAULTS = { fonte: "demo", ano: "2026", eleicao: "", cargo: "0001", auto: true };
+// 2º turno de 25/10/2026: códigos do TSE para cada cargo
+const DOMINGO = { "0001": "6258", "0003": "6260" };
+const DEFAULTS = { fonte: "tse", ano: "2026", eleicao: DOMINGO["0001"], cargo: "0001", auto: true };
 
 function loadConfig() {
   let saved = {};
@@ -327,7 +329,12 @@ async function atualizar() {
     ufs.forEach((uf, i) => (state.estados[uf] = estados[i]));
     state.brasil = br || (estados.some(Boolean) ? aggregate(estados) : null);
     if (!state.brasil && erroBr?.semAcesso) throw erroBr;
-    if (!state.brasil) throw new Error("Nenhum arquivo de resultado encontrado. Confira ano, código da eleição e cargo.");
+    if (!state.brasil) {
+      throw new Error(
+        "O TSE ainda não publicou resultados para essa eleição e cargo. No domingo, a apuração começa às 17h (Brasília). " +
+          "Para ver o painel funcionando antes disso, use a Simulação.",
+      );
+    }
     // fixa as cores na ordem dos números dos candidatos, para não mudarem quando a liderança muda
     [...state.brasil.candidatos].sort((a, b) => a.numero.localeCompare(b.numero, undefined, { numeric: true })).forEach((c) => cor(c.numero));
     renderAll();
@@ -362,6 +369,10 @@ function syncForm() {
 }
 
 form.addEventListener("change", (ev) => {
+  // trocar o cargo troca o código quando é uma das eleições de domingo
+  if (ev.target.name === "cargo" && Object.values(DOMINGO).includes(form.elements.eleicao.value)) {
+    form.elements.eleicao.value = DOMINGO[ev.target.value];
+  }
   form.querySelectorAll(".tse-only").forEach((el) => (el.hidden = form.elements.fonte.value !== "tse"));
 });
 
@@ -389,7 +400,14 @@ $("#descobrir").addEventListener("click", async () => {
   try {
     const lista = await TseSource.descobrirEleicoes(TSE_BASE, form.elements.ano.value.trim());
     ul.innerHTML = lista.length
-      ? lista.map((e) => `<li><b>${esc(e.codigo)}</b> — ${esc(e.nome)} ${esc(e.data)} <button data-cod="${esc(e.codigo)}">usar</button></li>`).join("")
+      ? lista
+          .filter((e) => e.cargos.includes("Presidente") || e.cargos.includes("Governador"))
+          .map((e) => {
+            const cargo = e.cargos.includes("Presidente") ? "0001" : e.cargos.includes("Governador") ? "0003" : "";
+            const botao = cargo ? ` <button data-cod="${esc(e.codigo)}" data-cargo="${cargo}">usar</button>` : "";
+            return `<li><b>${esc(e.codigo)}</b> — ${esc(e.nome)} (${esc(e.data)})${botao}</li>`;
+          })
+          .join("")
       : "<li>Nenhuma eleição encontrada para esse ano.</li>";
   } catch (err) {
     ul.innerHTML = `<li class="erro">${esc(err.message)}</li>`;
@@ -400,6 +418,7 @@ $("#lista-eleicoes").addEventListener("click", (ev) => {
   const cod = ev.target.dataset?.cod;
   if (!cod) return;
   form.elements.eleicao.value = cod;
+  form.elements.cargo.value = ev.target.dataset.cargo;
   $("#dlg-eleicoes").close();
   form.requestSubmit();
 });

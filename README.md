@@ -34,31 +34,34 @@ Para ativar (uma vez só):
    O link sai como `https://<usuario>.github.io/<repositorio>/`.
 
 No Pages não existe o `server.js`, então o navegador busca os dados direto em
-`resultados.tse.jus.br`. Isso só funciona se o TSE liberar acesso de outros sites (CORS).
-Se o painel mostrar "Sem acesso ao site do TSE", use o `server.js` (no seu computador ou
-num serviço como o Render). O modo Simulação funciona em qualquer caso.
+`resultados.tse.jus.br`, que libera esse acesso (CORS) para sites do `github.io`.
 
-## Configurando para domingo
+## Configurando para domingo (25/10/2026)
 
-1. Em **Fonte**, escolha *TSE (ao vivo)*.
-2. **Ano**: `2026`.
-3. **Cód. eleição**: o código que o TSE dá para o turno. Clique em **?** para listar as
-   eleições publicadas no TSE e escolher. (Referência: em 2022 o 1º turno foi `544` e o 2º, `545`.)
-4. **Cargo**: Presidente ou Governador (no 2º turno, governador só existe em alguns estados —
-   os que não têm disputa ficam fora das tabelas).
+O painel já abre configurado para o 2º turno de Presidente. Códigos do TSE:
 
-A configuração fica salva no navegador. Também dá para passar pela URL:
-`http://localhost:8080/?fonte=tse&ano=2026&eleicao=545&cargo=0001`.
+| Eleição | Código | Cargo |
+|---|---|---|
+| 2º turno federal | `6258` | Presidente |
+| 2º turno estadual | `6260` | Governador (AC, AM, DF, ES, RN, TO) |
+| 1º turno federal (04/10) | `6257` | Presidente |
+| 1º turno estadual (04/10) | `6259` | Governador |
+
+Trocar o cargo entre Presidente e Governador troca o código sozinho. O botão **?** lista as
+eleições publicadas no TSE. A configuração fica salva no navegador e também pode ir pela URL:
+`?fonte=tse&ano=2026&eleicao=6258&cargo=0001`.
 
 ## Arquivos do TSE usados
 
 | Nível | Caminho |
 |---|---|
-| Brasil | `/oficial/ele{ano}/{eleicao}/dados-simplificados/br/br-c{cargo}-e{eleicao}-r.json` |
-| Estado | `.../dados-simplificados/{uf}/{uf}-c{cargo}-e{eleicao}-r.json` |
-| Cidade | `.../dados-simplificados/{uf}/{uf}{codmun}-c{cargo}-e{eleicao}-r.json` |
+| Lista de eleições | `/oficial/comum/config/ele-c.json` |
+| Brasil | `/oficial/ele{ano}/{eleicao}/dados/br/br-c{cargo}-e{eleicao}-u.json` |
+| Estado | `.../dados/{uf}/{uf}-c{cargo}-e{eleicao}-u.json` |
+| Cidade | `.../dados/{uf}/{uf}{codmun}-c{cargo}-e{eleicao}-u.json` |
 | Lista de cidades | `/oficial/ele{ano}/{eleicao}/config/mun-e{eleicao}-cm.json` |
 
-`{eleicao}` com 6 dígitos nos nomes de arquivo (ex.: `000545`), `{cargo}` com 4 (`0001` = Presidente,
-`0003` = Governador). Campos: `s` seções, `st` seções totalizadas, `e` eleitorado, `c` comparecimento,
-`a` abstenção, `vb` brancos, `tvn` nulos, `vv` válidos, `cand[].vap` votos do candidato.
+`{eleicao}` vai com 6 dígitos nos nomes de arquivo (ex.: `006258`) e `{cargo}` com 4 (`0001` = Presidente,
+`0003` = Governador). Campos: `s.ts` seções, `s.st` seções totalizadas, `e.te` eleitorado, `e.c`
+comparecimento, `e.a` abstenção, `v.vb` brancos, `v.tvn` nulos, `v.vv` válidos e os candidatos em
+`carg[].agr[].par[].cand[]` (`nmu` nome de urna, `vap` votos).

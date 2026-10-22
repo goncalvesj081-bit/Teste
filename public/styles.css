@@ -101,6 +101,7 @@ button[type="submit"] { background: var(--accent); border-color: var(--accent); 
 .inline { display: flex; gap: 4px; }
 
 main { max-width: 1200px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+main > * { min-width: 0; }
 
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
 .kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }

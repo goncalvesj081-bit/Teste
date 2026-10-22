@@ -47,20 +47,37 @@ export function aggregate(results) {
 
 // ---------------------------------------------------------------- TSE
 
+// Formato atual (2024+): dados/{uf}/{abr}-c{cargo}-e{eleicao}-u.json, com os totais
+// em s (seções), e (eleitorado) e v (votos) e os candidatos em carg[].agr[].par[].cand[].
 function parseTse(j) {
+  const s = j.s || {}, e = j.e || {}, v = j.v || {};
+  const candidatos = [];
+  for (const cargo of j.carg || []) {
+    for (const agr of cargo.agr || []) {
+      for (const par of agr.par || []) {
+        for (const c of par.cand || []) {
+          candidatos.push({
+            numero: String(c.n),
+            nome: c.nmu || c.nm,
+            partido: par.sg || agr.com || "",
+            votos: int(c.vap),
+            situacao: c.st || "",
+          });
+        }
+      }
+    }
+  }
   return {
-    secoes: int(j.s),
-    apuradas: int(j.st),
-    eleitores: int(j.e),
-    comparecimento: int(j.c),
-    abstencao: int(j.a),
-    brancos: int(j.vb),
-    nulos: int(j.tvn ?? j.vn),
-    validos: int(j.vv),
+    secoes: int(s.ts),
+    apuradas: int(s.st),
+    eleitores: int(e.te),
+    comparecimento: int(e.c),
+    abstencao: int(e.a),
+    brancos: int(v.vb),
+    nulos: int(v.tvn),
+    validos: int(v.vv),
     atualizadoEm: j.dt && j.ht ? `${j.dt.split("/").reverse().join("-")} ${j.ht}` : "",
-    candidatos: (j.cand || [])
-      .map((c) => ({ numero: String(c.n), nome: c.nm, partido: c.cc || "", votos: int(c.vap), situacao: c.st || "" }))
-      .sort((a, b) => b.votos - a.votos),
+    candidatos: candidatos.sort((a, b) => b.votos - a.votos),
   };
 }
 
@@ -80,9 +97,7 @@ export class TseSource {
     try {
       r = await fetch(url, { cache: "no-store" });
     } catch {
-      const err = new Error(
-        "Sem acesso ao site do TSE. Se o painel está no GitHub Pages, o TSE pode estar bloqueando o acesso direto do navegador: rode com node server.js.",
-      );
+      const err = new Error("Sem acesso ao site do TSE. Confira a internet ou rode o painel com node server.js.");
       err.semAcesso = true;
       throw err;
     }
@@ -92,7 +107,7 @@ export class TseSource {
 
   file(abr) {
     const e = this.cfg.eleicao.padStart(6, "0");
-    return `${this.root}/dados-simplificados/${abr.slice(0, 2)}/${abr}-c${this.cfg.cargo}-e${e}-r.json`;
+    return `${this.root}/dados/${abr.slice(0, 2)}/${abr}-c${this.cfg.cargo}-e${e}-u.json`;
   }
 
   async brasil() {
@@ -110,7 +125,11 @@ export class TseSource {
     const j = await this.json(`${this.root}/config/mun-e${e}-cm.json`);
     this.municipios = {};
     for (const abr of j.abr || []) {
-      this.municipios[abr.cd] = (abr.mu || []).map((m) => ({ codigo: m.cd, nome: m.nm, capital: m.c === "S" }));
+      this.municipios[abr.cd.toUpperCase()] = (abr.mu || []).map((m) => ({
+        codigo: m.cd,
+        nome: m.nm,
+        capital: String(m.c).toLowerCase() === "s",
+      }));
     }
     return this.municipios;
   }
@@ -119,22 +138,22 @@ export class TseSource {
     return parseTse(await this.json(this.file(uf.toLowerCase() + codigo)));
   }
 
-  /** Tenta listar as eleições publicadas no ano (para descobrir o código). */
+  /** Lista as eleições publicadas no TSE para o ano (para descobrir o código). */
   static async descobrirEleicoes(base, ano) {
     const r = await fetch(`${base}/oficial/comum/config/ele-c.json`, { cache: "no-store" });
     if (!r.ok) throw new Error(`${r.status} ao ler a lista de eleições`);
+    const j = await r.json();
     const found = [];
-    const walk = (node, ciclo) => {
-      if (Array.isArray(node)) return node.forEach((n) => walk(n, ciclo));
-      if (!node || typeof node !== "object") return;
-      const c = node.cdpr || node.cdp || ciclo;
-      if (node.cd && node.nm && /^\d+$/.test(String(node.cd))) {
-        found.push({ codigo: String(Number(node.cd)), nome: node.nm, data: node.dt || "", ciclo: c || "" });
+    for (const pl of j.pl || []) {
+      if (ano && pl.c !== `ele${ano}`) continue;
+      for (const e of pl.e || []) {
+        const cargos = [...new Set((e.abr || []).flatMap((a) => (a.cp || []).map((c) => c.ds)))];
+        found.push({ codigo: String(Number(e.cd)), nome: e.nm, data: pl.dt || "", cargos });
       }
-      Object.values(node).forEach((v) => walk(v, c));
-    };
-    walk(await r.json());
-    return found.filter((x) => !ano || String(x.ciclo).includes(ano) || String(x.data).includes(ano) || x.nome.includes(ano));
+    }
+    // eleições ordinárias primeiro, depois as mais recentes
+    const chave = (x) => (x.nome.includes("Ordinária") ? "1" : "0") + x.data.split("/").reverse().join("");
+    return found.sort((a, b) => chave(b).localeCompare(chave(a)));
   }
 }
 
