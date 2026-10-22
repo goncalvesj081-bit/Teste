@@ -15,7 +15,7 @@
   --live: #0f9f5f;
   --warn: #b7791f;
   --danger: #c53030;
-  /* cores dos candidatos (ordem fixa; PT e PL usam vermelho e azul) */
+  /* cores dos candidatos (ordem fixa; PT usa o vermelho e PL o verde) */
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
@@ -50,7 +50,7 @@
     --series-3: #199e70;
     --series-4: #c98500;
     --series-5: #d55181;
-    --series-6: #008300;
+    --series-6: #2ea043;
     --series-7: #9085e9;
     --series-8: #e66767;
     --series-other: #5f6776;
@@ -77,7 +77,7 @@
   --series-3: #199e70;
   --series-4: #c98500;
   --series-5: #d55181;
-  --series-6: #008300;
+  --series-6: #2ea043;
   --series-7: #9085e9;
   --series-8: #e66767;
   --series-other: #5f6776;

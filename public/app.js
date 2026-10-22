@@ -1,4 +1,4 @@
-import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js?v=4";
+import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js?v=5";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
@@ -178,9 +178,9 @@ function unidades(d, rec = cfg.recorte) {
 
 // ------------------------------------------------------------- cores
 
-// cor por partido (dois primeiros dígitos do número): PT vermelho, PL azul; os demais na ordem da paleta
-const RESERVADAS = { 13: 8, 22: 1 };
-const LIVRES = [2, 3, 4, 5, 6, 7];
+// cor por partido (dois primeiros dígitos do número): PT vermelho, PL verde; os demais na ordem da paleta
+const RESERVADAS = { 13: 8, 22: 6 };
+const LIVRES = [1, 2, 3, 4, 5, 7];
 const slots = new Map();
 
 function slot(numero) {
