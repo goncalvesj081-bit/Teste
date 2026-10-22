@@ -1,4 +1,4 @@
-import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js";
+import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js?v=4";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
@@ -6,11 +6,11 @@ const pctFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximu
 const ppFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const pct = (a, b) => (b ? (a / b) * 100 : 0);
 const pctStr = (a, b) => pctFmt.format(pct(a, b)) + "%";
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const delta = (d) => `<span class="delta">${d >= 0.05 ? "▲ +" : d <= -0.05 ? "▼ −" : ""}${ppFmt.format(Math.abs(d))} p.p.</span>`;
+const hora = (d) => d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 const REFRESH_MS = 30_000;
-const CONCORRENCIA = 8;
 
 // ------------------------------------------------------------- configuração
 
@@ -19,34 +19,33 @@ const TURNOS = {
   1: { "0001": "6257", "0003": "6259" },
   2: { "0001": "6258", "0003": "6260" },
 };
-const NOME_TURNO = { 1: "1º turno", 2: "2º turno", outro: "eleição" };
-const DEFAULTS = { fonte: "tse", turno: "2", ano: "2026", eleicao: "", cargo: "0001", auto: true, recorte: "" };
+const NOME_TURNO = { 1: "1º turno", 2: "2º turno" };
+const params = new URLSearchParams(location.search);
 
 function loadConfig() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem("painel-config") || "{}"); } catch {}
-  const params = Object.fromEntries(new URLSearchParams(location.search));
-  const c = { ...DEFAULTS, ...saved, ...params };
-  c.auto = c.auto === true || c.auto === "true" || c.auto === "1";
-  // configuração antiga (só com o código): descobre o turno pelo código
-  if (!saved.turno && !params.turno && c.eleicao) {
-    c.turno = Object.keys(TURNOS).find((t) => TURNOS[t][c.cargo] === c.eleicao) || "outro";
-  }
-  if (!["1", "2", "outro"].includes(c.turno)) c.turno = "2";
+  const c = { fonte: "tse", turno: "2", cargo: "0001", recorte: "", ...saved };
+  for (const k of ["fonte", "turno", "cargo", "recorte"]) if (params.has(k)) c[k] = params.get(k);
+  if (!["1", "2"].includes(c.turno)) c.turno = "2";
+  if (!CARGOS[c.cargo]) c.cargo = "0001";
+  if (!["tse", "demo"].includes(c.fonte)) c.fonte = "tse";
+  if (c.recorte && !UFS[c.recorte] && !REGIOES.includes(c.recorte.slice(2))) c.recorte = "";
   return c;
 }
+
+let cfg = loadConfig();
+// código de eleição avulso só pela URL (?eleicao=6258&ano=2026)
+const ELEICAO_URL = params.get("eleicao");
+const ANO = params.get("ano") || "2026";
 
 function saveConfig() {
   try { localStorage.setItem("painel-config", JSON.stringify(cfg)); } catch {}
 }
 
-const codigoEleicao = (c) => (c.turno === "outro" ? c.eleicao : TURNOS[c.turno][c.cargo]);
-
 // Servido pelo server.js -> usa o proxy "tse/"; hospedado só com arquivos estáticos
 // (GitHub Pages) ou aberto como arquivo -> acessa o TSE direto.
-const params = new URLSearchParams(location.search);
-const TSE_DIRETO = "https://resultados.tse.jus.br";
-let TSE_BASE = params.get("base") || TSE_DIRETO;
+let TSE_BASE = params.get("base") || "https://resultados.tse.jus.br";
 
 async function detectarProxy() {
   if (params.get("base") || !location.protocol.startsWith("http")) return;
@@ -56,111 +55,171 @@ async function detectarProxy() {
   } catch {}
 }
 
-let cfg = loadConfig();
-let source;
-let sourceT1; // 1º turno, para comparar quando o painel está no 2º
-let timer;
+// ------------------------------------------------------------- dados (cache por fonte, eleição e cargo)
 
-const state = {
-  brasil: null,
-  estados: {}, // UF -> resultado | null (sem dados)
-  cidades: {}, // UF -> [{ codigo, nome, capital, r }]
-  t1: null, // { brasil, estados } do 1º turno
-  aba: "analises",
-  cores: new Map(), // número do candidato -> slot de cor fixo
-};
+const cache = new Map();
 
-function novaFonte(turno, eleicao) {
-  if (cfg.fonte === "demo") return new DemoSource(turno === "1" ? "1" : "2");
-  return new TseSource({ base: TSE_BASE, ano: cfg.ano, eleicao, cargo: cfg.cargo });
+function conjunto(fonte, turno, cargo) {
+  const codigo = turno === cfg.turno && ELEICAO_URL ? ELEICAO_URL : TURNOS[turno][cargo];
+  const chave = `${fonte}|${codigo}|${cargo}`;
+  if (!cache.has(chave)) {
+    cache.set(chave, {
+      chave,
+      turno,
+      cargo,
+      fonte: fonte === "demo" ? new DemoSource(turno) : new TseSource({ base: TSE_BASE, ano: ANO, eleicao: codigo, cargo }),
+      brasil: null,
+      estados: {},
+      cidades: {},
+      carregado: false,
+      lido: null,
+      erro: null,
+      emCurso: null,
+      cidadesEmCurso: {},
+    });
+  }
+  return cache.get(chave);
 }
 
-function buildSource() {
-  source = novaFonte(cfg.turno, codigoEleicao(cfg));
-  sourceT1 = cfg.turno === "2" ? novaFonte("1", TURNOS[1][cfg.cargo]) : null;
-  state.brasil = null;
-  state.estados = {};
-  state.cidades = {};
-  state.t1 = null;
-  state.cores = new Map();
-}
-
+const atual = () => conjunto(cfg.fonte, cfg.turno, cfg.cargo);
+const primeiroTurno = () => (cfg.turno === "2" ? conjunto(cfg.fonte, "1", cfg.cargo) : null);
+const completo = (r) => !!r && r.secoes > 0 && r.apuradas === r.secoes;
 const governador = () => cfg.cargo === "0003";
+
+function carregarEstados(d) {
+  if (d.emCurso) return d.emCurso;
+  d.emCurso = (async () => {
+    const ufs = Object.keys(UFS);
+    let erroBr = null;
+    const [br, ...est] = await Promise.all([
+      d.fonte.brasil().catch((e) => ((erroBr = e), null)),
+      ...ufs.map((uf) => d.fonte.estado(uf).catch(() => null)),
+    ]);
+    ufs.forEach((uf, i) => (d.estados[uf] = est[i]));
+    d.brasil = br || (est.some(Boolean) ? aggregate(est) : null);
+    d.carregado = true;
+    d.lido = new Date();
+    d.erro = d.brasil ? null : erroBr?.semAcesso ? erroBr.message : "semdados";
+  })().finally(() => (d.emCurso = null));
+  return d.emCurso;
+}
+
+async function pool(items, fn, n) {
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(n, items.length) }, async () => {
+      while (i < items.length) {
+        const item = items[i++];
+        try { await fn(item); } catch {}
+      }
+    }),
+  );
+}
+
+/**
+ * Votos por cidade. O TSE tem um arquivo por cidade; o índice do estado (andamentoCidades)
+ * diz quantas urnas cada cidade já apurou, então só baixamos de novo as que mudaram.
+ */
+function carregarCidades(d, uf, ativo) {
+  if (d.cidadesEmCurso[uf]) return d.cidadesEmCurso[uf];
+  d.cidadesEmCurso[uf] = (async () => {
+    const lista = (await d.fonte.listaMunicipios())[uf] || [];
+    const anterior = new Map((d.cidades[uf] || []).map((m) => [m.codigo, m.r]));
+    const cidades = lista.map((m) => ({ ...m, r: anterior.get(m.codigo) || null }));
+    d.cidades[uf] = cidades;
+    let alvo = cidades;
+    if (d.fonte.andamentoCidades) {
+      try {
+        const andamento = await d.fonte.andamentoCidades(uf);
+        alvo = cidades.filter((m) => !m.r || andamento.get(m.codigo) !== m.r.apuradas);
+      } catch {}
+    }
+    await pool(
+      alvo,
+      async (m) => {
+        if (!ativo()) return;
+        m.r = await d.fonte.municipio(uf, m.codigo);
+        agendarRender();
+      },
+      24,
+    );
+  })().finally(() => delete d.cidadesEmCurso[uf]);
+  return d.cidadesEmCurso[uf];
+}
 
 // ------------------------------------------------------------- recorte
 
 const ehUF = (rec) => !!rec && !rec.startsWith("R:");
 const ufsDoRecorte = (rec) =>
   !rec ? Object.keys(UFS) : rec.startsWith("R:") ? Object.keys(UFS).filter((uf) => UFS[uf][1] === rec.slice(2)) : [rec];
-const nomeRecorte = (rec) => (!rec ? "Brasil" : rec.startsWith("R:") ? rec.slice(2) : UFS[rec][0]);
+const nomeRecorte = (rec) => (!rec ? "Brasil" : rec.startsWith("R:") ? `Região ${rec.slice(2)}` : UFS[rec][0]);
 
-function resultadoRecorte(rec, base = state) {
-  if (!base) return null;
-  if (!rec) return base.brasil;
-  if (ehUF(rec)) return base.estados[rec] || null;
-  const rs = ufsDoRecorte(rec).map((uf) => base.estados[uf]).filter(Boolean);
+function resultadoRecorte(d, rec = cfg.recorte) {
+  if (!d) return null;
+  if (!rec) return d.brasil;
+  if (ehUF(rec)) return d.estados[rec] || null;
+  const rs = ufsDoRecorte(rec).map((uf) => d.estados[uf]).filter(Boolean);
   return rs.length ? aggregate(rs) : null;
 }
 
 // candidatos somados entre estados só fazem sentido para presidente
 const mostraCandidatos = () => !governador() || ehUF(cfg.recorte);
 
-/** Unidades dentro do recorte: estados (Brasil/região) ou cidades (estado, se carregadas). */
-function unidades(rec) {
+/** Unidades dentro do recorte: estados (Brasil/região) ou cidades (estado, quando carregadas). */
+function unidades(d, rec = cfg.recorte) {
   if (ehUF(rec)) {
-    const lista = state.cidades[rec];
+    const lista = d.cidades[rec];
     return lista?.some((m) => m.r) ? lista.filter((m) => m.r).map((m) => ({ id: m.codigo, nome: m.nome, r: m.r, cidade: true })) : null;
   }
   return ufsDoRecorte(rec)
-    .filter((uf) => state.estados[uf])
-    .map((uf) => ({ id: uf, nome: UFS[uf][0], r: state.estados[uf] }));
+    .filter((uf) => d.estados[uf])
+    .map((uf) => ({ id: uf, nome: UFS[uf][0], r: d.estados[uf] }));
 }
 
-// ------------------------------------------------------------- utilidades
+// ------------------------------------------------------------- cores
 
-async function pool(items, fn, n = CONCORRENCIA) {
-  const out = new Array(items.length);
-  let i = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(n, items.length) }, async () => {
-      while (i < items.length) {
-        const idx = i++;
-        try { out[idx] = await fn(items[idx]); } catch { out[idx] = null; }
-      }
-    }),
-  );
-  return out;
+// cor por partido (dois primeiros dígitos do número): PT vermelho, PL azul; os demais na ordem da paleta
+const RESERVADAS = { 13: 8, 22: 1 };
+const LIVRES = [2, 3, 4, 5, 6, 7];
+const slots = new Map();
+
+function slot(numero) {
+  const p = String(numero).slice(0, 2);
+  if (RESERVADAS[p]) return RESERVADAS[p];
+  if (!slots.has(p)) {
+    const usados = new Set(slots.values());
+    slots.set(p, LIVRES.find((s) => !usados.has(s)) || 0);
+  }
+  return slots.get(p);
 }
-
-function cor(numero) {
-  if (!state.cores.has(numero)) state.cores.set(numero, state.cores.size);
-  const slot = state.cores.get(numero);
-  return slot < 8 ? `var(--series-${slot + 1})` : "var(--series-other)";
-}
-
+const cor = (numero) => (slot(numero) ? `var(--series-${slot(numero)})` : "var(--series-other)");
 const sw = (c) => `<i class="swatch" style="background:${cor(c.numero)}"></i>`;
+const porSlot = (a, b) => (slot(a.numero) || 99) - (slot(b.numero) || 99);
 
-function nomeCurto(c) {
-  return c.nome.length > 22 ? c.nome.slice(0, 21) + "…" : c.nome;
+function fixarCores(d) {
+  // os mais votados ganham as cores primeiro
+  if (d.brasil) [...d.brasil.candidatos].sort((a, b) => b.votos - a.votos).forEach((c) => slot(c.numero));
 }
 
+// ------------------------------------------------------------- utilidades de desenho
+
+const nomeCurto = (c) => (c.nome.length > 24 ? c.nome.slice(0, 23) + "…" : c.nome);
 const votosDe = (r, numero) => r?.candidatos.find((x) => x.numero === numero)?.votos || 0;
 const margem = (r) => (r?.validos ? pct((r.candidatos[0]?.votos || 0) - (r.candidatos[1]?.votos || 0), r.validos) : 0);
 
 function progress(r) {
   const p = pct(r.apuradas, r.secoes);
-  return `<div class="progress-cell"><div class="progress"><i style="width:${p}%"></i></div><span class="num">${pctFmt.format(p)}%</span></div>`;
+  return `<div class="progress-cell"><div class="progress"><i style="width:${p}%"></i></div><span class="r">${pctFmt.format(p)}%</span></div>`;
 }
 
-function stack(r, extra = "") {
-  if (!r.validos) return `<div class="stack" ${extra}></div>`;
-  // ordem fixa por candidato (não por quem lidera), para dar pra comparar linhas
+function stack(r) {
+  if (!r.validos) return `<div class="stack" data-tipkey="1"></div>`;
   const segs = [...r.candidatos]
-    .sort((a, b) => cor(a.numero).localeCompare(cor(b.numero), undefined, { numeric: true }))
+    .sort(porSlot)
     .filter((c) => c.votos > 0)
     .map((c) => `<i style="width:${pct(c.votos, r.validos)}%;background:${cor(c.numero)}"></i>`)
     .join("");
-  return `<div class="stack" ${extra}>${segs}</div>`;
+  return `<div class="stack" data-tipkey="1">${segs}</div>`;
 }
 
 /** Votos válidos que ainda faltam apurar numa unidade (estimativa). */
@@ -172,16 +231,13 @@ function restanteEstimado(r, ref) {
   return r.eleitorado * (faltam / r.secoes) * 0.75;
 }
 
-/**
- * Projeção simples: as urnas que faltam em cada unidade votam como as já apuradas nela
- * (se a unidade não tem nada apurado, usa a divisão do recorte inteiro).
- */
-function projetar(us) {
+/** Projeção simples: as urnas que faltam em cada unidade votam como as já apuradas nela. */
+function projetar(us, d1) {
   const geral = aggregate(us.map((u) => u.r));
   const total = new Map();
   let restante = 0;
   for (const u of us) {
-    const rest = restanteEstimado(u.r, !u.cidade ? state.t1?.estados[u.id] : null);
+    const rest = restanteEstimado(u.r, !u.cidade ? d1?.estados[u.id] : null);
     restante += rest;
     for (const c of geral.candidatos) {
       const v = votosDe(u.r, c.numero);
@@ -189,11 +245,10 @@ function projetar(us) {
       total.set(c.numero, (total.get(c.numero) || 0) + v + rest * share);
     }
   }
-  const validos = geral.validos + restante;
   return {
     restante,
     validosAtual: geral.validos,
-    validos,
+    validos: geral.validos + restante,
     candidatos: geral.candidatos.map((c) => ({ ...c, projetado: total.get(c.numero) || 0 })).sort((a, b) => b.projetado - a.projetado),
   };
 }
@@ -202,84 +257,287 @@ function projetar(us) {
 
 const tip = $("#tooltip");
 const tipData = new WeakMap();
-
-function bindTip(el, r, titulo) {
-  if (el) tipData.set(el, { r, titulo });
-}
+const bindTip = (el, r, titulo) => el && r && tipData.set(el, { r, titulo });
 
 document.addEventListener("pointermove", (ev) => {
   const el = ev.target.closest?.("[data-tipkey]");
   const d = el && tipData.get(el);
   if (!d) { tip.hidden = true; return; }
   const { r, titulo } = d;
+  const linhas = r.candidatos
+    .slice(0, 4)
+    .map((c) => `<div><span>${sw(c)} ${esc(nomeCurto(c))}</span><span><b>${pctStr(c.votos, r.validos)}</b></span></div>`)
+    .join("");
   tip.innerHTML =
-    `<strong>${esc(titulo)}</strong>` +
-    `<div><span>Urnas apuradas</span><span>${pctStr(r.apuradas, r.secoes)}</span></div>` +
-    r.candidatos.map((c) => `<div><span>${sw(c)} ${esc(nomeCurto(c))}</span><span>${pctStr(c.votos, r.validos)} · ${fmt.format(c.votos)}</span></div>`).join("");
+    `<strong>${esc(titulo)}</strong>${linhas}` +
+    `<div class="t-sub"><span>Urnas apuradas</span><span>${pctStr(r.apuradas, r.secoes)}</span></div>`;
   tip.hidden = false;
   const x = Math.min(ev.clientX + 14, innerWidth - tip.offsetWidth - 8);
   const y = Math.min(ev.clientY + 14, innerHeight - tip.offsetHeight - 8);
-  tip.style.left = x + "px";
-  tip.style.top = y + "px";
+  tip.style.left = Math.max(8, x) + "px";
+  tip.style.top = Math.max(8, y) + "px";
 });
 
-// ------------------------------------------------------------- render: topo
+// ------------------------------------------------------------- topo
 
-function renderKpis() {
-  const r = resultadoRecorte(cfg.recorte);
-  if (!r) { $("#kpis").innerHTML = ""; return; }
-  const [lider, segundo] = r.candidatos;
-  $("#kpis").innerHTML = `
-    <div class="kpi hero"><div class="label">Urnas apuradas</div><div class="value">${pctStr(r.apuradas, r.secoes)}</div>
-      <div class="sub">${fmt.format(r.apuradas)} de ${fmt.format(r.secoes)} seções</div></div>
-    <div class="kpi"><div class="label">Comparecimento</div><div class="value">${pctStr(r.comparecimento, r.eleitores)}</div>
-      <div class="sub">${fmt.format(r.comparecimento)} eleitores</div></div>
-    <div class="kpi"><div class="label">Abstenção</div><div class="value">${pctStr(r.abstencao, r.eleitores)}</div>
-      <div class="sub">${fmt.format(r.abstencao)} eleitores</div></div>
-    <div class="kpi"><div class="label">Brancos / nulos</div><div class="value">${pctStr(r.brancos + r.nulos, r.comparecimento)}</div>
-      <div class="sub">${fmt.format(r.brancos)} brancos · ${fmt.format(r.nulos)} nulos</div></div>
-    ${mostraCandidatos() && lider && segundo ? `<div class="kpi"><div class="label">Diferença 1º – 2º</div><div class="value">${fmt.format(lider.votos - segundo.votos)}</div>
-      <div class="sub">${pctFmt.format(margem(r))} p.p. dos válidos</div></div>` : ""}`;
-}
+let carregandoAgora = false;
 
-function renderPrincipal() {
+function renderTopo(d) {
+  const r = resultadoRecorte(d);
+  $("#recorte").value = cfg.recorte;
+  $("#fonte").value = cfg.fonte;
+  document.querySelectorAll("#seg-turno button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === cfg.turno)));
+  document.querySelectorAll("#seg-cargo button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === cfg.cargo)));
+  $("#btn-atualizar").classList.toggle("girando", carregandoAgora);
+
+  const status = $("#status");
+  let estado = "carregando", txt = "Carregando…";
+  if (d.erro && d.erro !== "semdados") { estado = "erro"; txt = "Sem conexão com o TSE"; }
+  else if (d.brasil) {
+    if (completo(d.brasil)) { estado = "encerrado"; txt = "Apuração encerrada"; }
+    else if (!d.brasil.apuradas) { estado = "aguardando"; txt = "Aguardando o início da apuração"; }
+    else { estado = "aovivo"; txt = "Ao vivo"; }
+  } else if (d.carregado) { estado = "aguardando"; txt = "Sem resultados publicados"; }
+  if (cfg.fonte === "demo") txt += " · simulação";
+  status.dataset.estado = estado;
+  $("#status-txt").textContent = txt;
+
+  const p = r ? pct(r.apuradas, r.secoes) : 0;
+  $("#pg-valor").textContent = r ? pctFmt.format(p) + "%" : "—";
+  $("#pg-fill").style.width = p + "%";
+  $("#pg-sub").textContent = r
+    ? `${fmt.format(r.apuradas)} de ${fmt.format(r.secoes)} seções${r === d.brasil ? "" : " · " + nomeRecorte(cfg.recorte)}` +
+      (d.lido ? ` · lido às ${hora(d.lido)}` : "")
+    : "";
+
+  const aviso = $("#aviso");
+  aviso.classList.toggle("erro", !!d.erro && d.erro !== "semdados");
+  if (d.erro === "semdados") {
+    aviso.textContent = `O TSE ainda não publicou resultados de ${CARGOS[cfg.cargo]} no ${NOME_TURNO[cfg.turno]}.`;
+  } else if (d.erro) {
+    aviso.textContent = d.erro;
+  }
+  aviso.hidden = !d.erro;
+
+  $("#eyebrow").textContent = `${CARGOS[cfg.cargo]} · ${NOME_TURNO[cfg.turno]}`;
   $("#titulo-recorte").textContent = nomeRecorte(cfg.recorte);
-  const r = resultadoRecorte(cfg.recorte);
-  if (!r) {
-    $("#brasil-bars").innerHTML = `<p class="muted">Sem dados para ${esc(nomeRecorte(cfg.recorte))} nesta eleição e cargo.</p>`;
-    $("#legend").innerHTML = "";
-    return;
-  }
-  if (!mostraCandidatos()) {
-    $("#legend").innerHTML = "";
-    $("#brasil-bars").innerHTML = `<p class="muted">Para governador, cada estado tem os seus candidatos. Escolha um estado em “Ver resultado de” para ver os votos.</p>`;
-    return;
-  }
-  $("#legend").innerHTML = r.candidatos.map((c) => `<span>${sw(c)}${esc(c.numero)} · ${esc(nomeCurto(c))}</span>`).join("");
-  const max = Math.max(...r.candidatos.map((c) => c.votos), 1);
-  $("#brasil-bars").innerHTML = r.candidatos
-    .map((c) => `
-      <div class="cand-row">
-        <div><div class="nome">${esc(c.nome)}${c.situacao && c.situacao !== "Não eleito" ? `<span class="tag">${esc(c.situacao)}</span>` : ""}</div>
-          <div class="partido">${esc(c.numero)} · ${esc(c.partido)}</div></div>
-        <div class="bar"><i style="width:${(c.votos / max) * 100}%;background:${cor(c.numero)}"></i></div>
-        <div class="pct"><b>${pctStr(c.votos, r.validos)}</b><small>${fmt.format(c.votos)} votos</small></div>
-      </div>`)
-    .join("");
+  $("#voltar").hidden = !cfg.recorte;
 }
 
-// ------------------------------------------------------------- render: análises
+// ------------------------------------------------------------- placar
 
-function renderResumo() {
+function renderPlacar(d) {
+  const el = $("#placar");
+  const r = resultadoRecorte(d);
+  if (!r) {
+    el.innerHTML = `<p class="muted">${d.carregado ? `Sem dados para ${esc(nomeRecorte(cfg.recorte))} neste turno e cargo.` : "Carregando…"}</p>`;
+    return;
+  }
+  if (!mostraCandidatos()) return renderPlacarGovernadores(d, el);
+  if (r.candidatos.length === 2) return renderDuelo(r, el);
+
+  const lider = r.candidatos[0];
+  const max = Math.max(lider?.votos || 0, 1);
+  const linha = (c, pequeno) => `
+    <div class="cand ${c === lider && r.validos ? "lider" : ""} ${pequeno ? "pequeno" : ""}">
+      <div class="nome">${sw(c)}<span class="txt">${esc(c.nome)}</span>${c.situacao && c.situacao !== "Não eleito" ? `<span class="tag">${esc(c.situacao)}</span>` : ""}</div>
+      <div class="pct">${r.validos ? pctStr(c.votos, r.validos) : "—"}</div>
+      <div class="bar"><i style="width:${(c.votos / max) * 100}%;background:${cor(c.numero)}"></i></div>
+      ${pequeno ? "" : `<div class="votos">${esc(c.numero)} · ${esc(c.partido)} · ${fmt.format(c.votos)} votos</div>`}
+    </div>`;
+  const principais = r.candidatos.slice(0, 4);
+  const outros = r.candidatos.slice(4);
+  const somaOutros = outros.reduce((s, c) => s + c.votos, 0);
+  el.innerHTML =
+    `<div class="lista-cand">${principais.map((c) => linha(c, false)).join("")}</div>` +
+    (outros.length
+      ? `<details class="outros"><summary>Outros ${outros.length} candidatos · ${pctStr(somaOutros, r.validos)} dos válidos</summary>
+         <div class="lista-cand">${outros.map((c) => linha(c, true)).join("")}</div></details>`
+      : "");
+}
+
+function renderDuelo(r, el) {
+  // lados fixos pela cor, para não trocarem quando a liderança muda
+  const [x, y] = [...r.candidatos].sort(porSlot);
+  const [a, b] = r.candidatos;
+  const lado = (c, dir) => `
+    <div class="lado ${dir ? "dir" : ""}">
+      <div class="nome">${dir ? "" : sw(c)}${esc(c.nome)}${dir ? sw(c) : ""}</div>
+      <div class="partido">${esc(c.numero)} · ${esc(c.partido)}</div>
+      <div class="grande">${r.validos ? pctFmt.format(pct(c.votos, r.validos)) + "%" : "—"}</div>
+      <div class="votos">${fmt.format(c.votos)} votos</div>
+    </div>`;
+  const dif = r.validos
+    ? `<p class="dif">${sw(a)} <b>${esc(a.nome)}</b> ${completo(r) ? "venceu" : "está à frente"} por <b>${fmt.format(a.votos - b.votos)}</b> votos (${pctFmt.format(margem(r))} p.p.).</p>`
+    : `<p class="dif">Aguardando as primeiras urnas.</p>`;
+  el.innerHTML = `
+    <div class="duelo">${lado(x, false)}${lado(y, true)}</div>
+    <div class="split" data-tipkey="1">
+      <i style="width:${r.validos ? pct(x.votos, r.validos) : 0}%;background:${cor(x.numero)}"></i>
+      <i style="width:${r.validos ? pct(y.votos, r.validos) : 0}%;background:${cor(y.numero)}"></i>
+      <span class="meio"></span>
+    </div>
+    <div class="split-legenda"><span>50%</span></div>
+    ${dif}`;
+  bindTip(el.querySelector(".split"), r, nomeRecorte(cfg.recorte));
+}
+
+/** Governador fora de um estado: um resumo por estado (cada um tem seus candidatos). */
+function renderPlacarGovernadores(d, el) {
+  const ufs = ufsDoRecorte(cfg.recorte).filter((uf) => d.estados[uf]);
+  if (!ufs.length) {
+    el.innerHTML = `<p class="muted">Sem disputa para governador aqui neste turno.</p>`;
+    return;
+  }
+  el.innerHTML =
+    `<p class="nota">Cada estado tem os seus candidatos. Clique num estado para ver a disputa.</p><div class="lista-cand">` +
+    ufs
+      .map((uf) => {
+        const r = d.estados[uf];
+        const [a] = r.candidatos;
+        return `<div class="cand pequeno" data-uf="${uf}" style="cursor:pointer">
+          <div class="nome"><b>${uf}</b><span class="txt">${a && r.validos ? `${sw(a)} ${esc(a.nome)} <span class="partido">${esc(a.partido)}</span>` : `<span class="muted">${esc(UFS[uf][0])}</span>`}</span></div>
+          <div class="pct">${a && r.validos ? pctStr(a.votos, r.validos) : pctStr(r.apuradas, r.secoes) + " apurado"}</div>
+          <div class="bar"><i style="width:${pct(r.apuradas, r.secoes)}%;background:var(--progress)"></i></div>
+        </div>`;
+      })
+      .join("") +
+    `</div>`;
+}
+
+function renderMini(d) {
+  const r = resultadoRecorte(d);
+  $("#mini").innerHTML = r
+    ? `<div><dt>Comparecimento</dt><dd>${pctStr(r.comparecimento, r.eleitores)}<small>${fmt.format(r.comparecimento)} eleitores</small></dd></div>
+       <div><dt>Abstenção</dt><dd>${pctStr(r.abstencao, r.eleitores)}<small>${fmt.format(r.abstencao)} eleitores</small></dd></div>
+       <div><dt>Brancos</dt><dd>${pctStr(r.brancos, r.comparecimento)}<small>${fmt.format(r.brancos)} votos</small></dd></div>
+       <div><dt>Nulos</dt><dd>${pctStr(r.nulos, r.comparecimento)}<small>${fmt.format(r.nulos)} votos</small></dd></div>`
+    : "";
+}
+
+// ------------------------------------------------------------- mapa
+
+const mapas = new Map(); // "br" ou uf -> Promise<{ viewBox, ufs | mun }>
+let modoMapa = "lider";
+let mapaSeq = 0;
+
+function carregarMapa(nome) {
+  if (!mapas.has(nome)) {
+    const p = fetch(`mapas/${nome}.json`).then((r) => {
+      if (!r.ok) throw new Error(`mapa ${nome}: ${r.status}`);
+      return r.json();
+    });
+    p.catch(() => mapas.delete(nome));
+    mapas.set(nome, p);
+  }
+  return mapas.get(nome);
+}
+
+/** Cor de uma área: quem lidera (mais forte = vantagem maior) ou % de urnas apuradas. */
+function corMapa(r) {
+  if (!r || !r.secoes) return "var(--track)";
+  if (modoMapa === "apuradas") {
+    const p = pct(r.apuradas, r.secoes);
+    return p ? `color-mix(in srgb, var(--progress) ${Math.round(15 + p * 0.85)}%, var(--track))` : "var(--track)";
+  }
+  const a = r.candidatos[0];
+  if (!a || !r.validos) return "var(--track)";
+  const m = Math.min(margem(r), 30);
+  return `color-mix(in srgb, ${cor(a.numero)} ${Math.round(38 + (m / 30) * 62)}%, var(--track))`;
+}
+
+function renderLegendaMapa(areas, carregandoCidades) {
+  const el = $("#mapa-legenda");
+  if (carregandoCidades) {
+    el.innerHTML = `<span>Carregando as cidades…</span>`;
+    return;
+  }
+  if (modoMapa === "apuradas") {
+    el.innerHTML = `<span>0%<i class="grad" style="background:linear-gradient(90deg, var(--track), var(--progress));margin:0 6px"></i>100% das urnas apuradas</span>`;
+    return;
+  }
+  const lideres = new Map();
+  for (const u of areas) {
+    const a = u.r?.validos && u.r.candidatos[0];
+    if (a && !u.fora) lideres.set(a.numero, a);
+  }
+  // governador no mapa do Brasil: cada estado tem seus candidatos, então a legenda é por partido
+  const rotulo = (c) => esc(governador() && !ehUF(cfg.recorte) ? c.partido : nomeCurto(c));
+  const itens = [...lideres.values()]
+    .sort(porSlot)
+    .map((c) => `<span><i class="grad" style="background:linear-gradient(90deg, color-mix(in srgb, ${cor(c.numero)} 38%, var(--track)), ${cor(c.numero)})"></i>${rotulo(c)}</span>`);
+  el.innerHTML = itens.length
+    ? itens.join("") + `<span class="muted">cor mais forte = vantagem maior</span>`
+    : `<span>O mapa ganha cor conforme as urnas são apuradas.</span>`;
+}
+
+async function renderMapa(d) {
   const rec = cfg.recorte;
-  const r = resultadoRecorte(rec);
-  const t1r = cfg.turno === "2" ? resultadoRecorte(rec, state.t1) : null;
+  const el = $("#mapa");
+  const seq = ++mapaSeq;
+  const nome = ehUF(rec) && rec !== "ZZ" ? rec.toLowerCase() : "br";
+  $("#chip-exterior").hidden = nome !== "br" || !d.estados.ZZ;
+  let geo;
+  try {
+    geo = await carregarMapa(nome);
+  } catch {
+    el.innerHTML = `<p class="carregando">Não foi possível carregar o mapa.</p>`;
+    return;
+  }
+  if (seq !== mapaSeq) return;
+
+  const areas = [];
+  if (nome === "br") {
+    const foco = new Set(ufsDoRecorte(rec));
+    for (const [uf, path] of Object.entries(geo.ufs)) {
+      // apaga o que está fora do recorte e os estados sem disputa (ex.: governador no 2º turno)
+      areas.push({ chave: uf, path, r: d.estados[uf], titulo: UFS[uf][0], fora: (!!rec && !foco.has(uf)) || (d.carregado && !d.estados[uf]) });
+    }
+  } else {
+    const lista = d.cidades[rec] || [];
+    const porCdi = new Map(lista.filter((m) => m.cdi).map((m) => [String(m.cdi), m]));
+    // na simulação as cidades não têm código IBGE: distribui as cidades fictícias pelos contornos
+    const semCodigo = lista.length > 0 && porCdi.size === 0;
+    Object.entries(geo.mun).forEach(([cdi, path], i) => {
+      const m = porCdi.get(cdi) || (semCodigo ? lista[i % lista.length] : null);
+      areas.push({ chave: cdi, path, r: m?.r, titulo: m ? m.nome : "" });
+    });
+  }
+  el.classList.toggle("cidades", nome !== "br");
+  el.innerHTML =
+    `<svg viewBox="${geo.viewBox}" role="img" aria-label="Mapa de ${esc(nomeRecorte(rec))}">` +
+    areas.map((u) => `<path data-tipkey="1" data-chave="${u.chave}"${u.fora ? ' class="fora"' : ""} d="${u.path}" style="fill:${corMapa(u.r)}"></path>`).join("") +
+    `</svg>`;
+  el.querySelectorAll("path").forEach((p, i) => bindTip(p, areas[i].r, areas[i].titulo));
+
+  // região: aproxima o mapa nos estados do recorte
+  if (nome === "br" && rec && rec !== "ZZ") {
+    const focos = [...el.querySelectorAll("path:not(.fora)")];
+    if (focos.length) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const p of focos) {
+        const b = p.getBBox();
+        x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
+      }
+      const pad = Math.max(x1 - x0, y1 - y0) * 0.06;
+      el.querySelector("svg").setAttribute("viewBox", `${x0 - pad} ${y0 - pad} ${x1 - x0 + 2 * pad} ${y1 - y0 + 2 * pad}`);
+    }
+  }
+  renderLegendaMapa(areas, nome !== "br" && !d.cidades[rec]?.some((m) => m.r));
+}
+
+// ------------------------------------------------------------- análises
+
+function renderResumo(d, d1) {
+  const rec = cfg.recorte;
+  const r = resultadoRecorte(d);
+  const t1r = d1 ? resultadoRecorte(d1) : null;
   const itens = [];
   if (!r || !r.secoes) {
-    $("#resumo").innerHTML = `<li>Sem dados para ${esc(nomeRecorte(rec))} nesta eleição e cargo.</li>`;
+    $("#resumo").innerHTML = `<li>${d.carregado ? `Sem dados para ${esc(nomeRecorte(rec))} neste turno e cargo.` : "Carregando…"}</li>`;
     return;
   }
-  const completo = r.apuradas === r.secoes;
+  const fim = completo(r);
   if (!r.apuradas) itens.push("A apuração ainda não começou aqui.");
   else itens.push(`<b>${pctStr(r.apuradas, r.secoes)}</b> das urnas apuradas (${fmt.format(r.apuradas)} de ${fmt.format(r.secoes)} seções).`);
 
@@ -287,23 +545,20 @@ function renderResumo() {
   if (r.apuradas && mostraCandidatos() && a && b) {
     const dif = a.votos - b.votos;
     itens.push(
-      `${sw(a)} <b>${esc(a.nome)}</b> ${completo ? "terminou em 1º" : "lidera"} com <b>${pctStr(a.votos, r.validos)}</b> dos votos válidos, ` +
+      `${sw(a)} <b>${esc(a.nome)}</b> ${fim ? "terminou em 1º" : "lidera"} com <b>${pctStr(a.votos, r.validos)}</b> dos votos válidos, ` +
         `<b>${fmt.format(dif)}</b> votos à frente de ${sw(b)} <b>${esc(b.nome)}</b> (${pctFmt.format(margem(r))} p.p.).`,
     );
-
-    // regra do 1º turno: mais da metade dos válidos vence direto
     const disputaPrincipal = governador() ? ehUF(rec) : !rec;
     if (cfg.turno === "1" && disputaPrincipal) {
-      if (pct(a.votos, r.validos) > 50) {
-        itens.push(`${esc(a.nome)} tem mais da metade dos votos válidos: ${completo ? "venceu" : "venceria"} sem 2º turno.`);
-      } else {
-        itens.push(`Ninguém passou de 50% dos válidos: ${esc(a.nome)} e ${esc(b.nome)} ${completo ? "foram" : "estão indo"} para o 2º turno.`);
-      }
+      itens.push(
+        pct(a.votos, r.validos) > 50
+          ? `${esc(a.nome)} tem mais da metade dos votos válidos: ${fim ? "venceu" : "venceria"} sem 2º turno.`
+          : `Ninguém passou de 50% dos válidos: ${esc(a.nome)} e ${esc(b.nome)} ${fim ? "foram" : "estão indo"} para o 2º turno.`,
+      );
     }
-
-    const us = unidades(rec);
-    if (!completo && us?.length) {
-      const proj = projetar(us);
+    const us = unidades(d);
+    if (!fim && us?.length) {
+      const proj = projetar(us, d1);
       if (dif > proj.restante) {
         itens.push(`A vantagem de ${esc(a.nome)} já é maior que todos os votos válidos que ainda faltam apurar (estimativa: ~${fmt.format(Math.round(proj.restante))}).`);
       } else {
@@ -313,16 +568,11 @@ function renderResumo() {
             `<b>${pctFmt.format(precisa * 100)}%</b> deles na disputa direta com ${esc(a.nome)}.`,
         );
       }
-      const [pa, pb] = proj.candidatos;
-      itens.push(
-        `Se o que falta votar como o que já foi apurado em cada ${us[0].cidade ? "cidade" : "estado"}, ` +
-          `${esc(pa.nome)} terminaria com <b>${pctStr(pa.projetado, proj.validos)}</b> e ${esc(pb.nome)} com <b>${pctStr(pb.projetado, proj.validos)}</b>.`,
-      );
     }
   }
 
   if (r.eleitores) {
-    let txt = `Comparecimento de <b>${pctStr(r.comparecimento, r.eleitores)}</b> nas seções apuradas (abstenção de ${pctStr(r.abstencao, r.eleitores)}).`;
+    let txt = `Comparecimento de <b>${pctStr(r.comparecimento, r.eleitores)}</b> nas seções apuradas.`;
     if (t1r?.eleitores) txt += ` No 1º turno foi ${pctStr(t1r.comparecimento, t1r.eleitores)} (${delta(pct(r.comparecimento, r.eleitores) - pct(t1r.comparecimento, t1r.eleitores))}).`;
     itens.push(txt);
   }
@@ -345,66 +595,76 @@ function renderResumo() {
   $("#resumo").innerHTML = itens.map((t) => `<li>${t}</li>`).join("");
 }
 
-function renderProjecao() {
-  const rec = cfg.recorte;
-  const r = resultadoRecorte(rec);
-  const us = unidades(rec);
-  const bloco = $("#bloco-projecao");
-  // apuração encerrada: a projeção só repetiria o resultado
-  bloco.hidden = !r || !mostraCandidatos() || (r.secoes > 0 && r.apuradas === r.secoes);
+function renderRegioes(d) {
+  const bloco = $("#bloco-regioes");
+  bloco.hidden = ehUF(cfg.recorte);
   if (bloco.hidden) return;
-  if (!r.apuradas) {
-    $("#projecao-nota").textContent = "A projeção aparece quando as primeiras urnas forem apuradas.";
-    $("#projecao").innerHTML = "";
-    return;
-  }
-  if (!us?.length) {
-    $("#projecao-nota").textContent = "Carregando as cidades para projetar…";
-    $("#projecao").innerHTML = "";
-    return;
-  }
-  const proj = projetar(us);
+  const resultados = {};
+  const el = $("#regioes");
+  el.innerHTML = REGIOES.filter((reg) => reg !== "Exterior")
+    .map((reg) => {
+      const ufs = Object.keys(UFS).filter((uf) => UFS[uf][1] === reg && d.estados[uf]);
+      if (!ufs.length) return "";
+      const r = (resultados[reg] = aggregate(ufs.map((uf) => d.estados[uf])));
+      const [a] = r.candidatos;
+      const lider = !governador() && a && r.validos ? `<div class="linha"><span>${sw(a)} ${esc(nomeCurto(a))}</span><b>${pctStr(a.votos, r.validos)}</b></div>` : "";
+      return `<button type="button" class="regiao" data-regiao="${reg}">
+        <h4>${reg}</h4>${lider}
+        ${!governador() ? stack(r) : ""}
+        <div class="linha"><span>Urnas apuradas</span><b>${pctStr(r.apuradas, r.secoes)}</b></div>
+        <div class="progress"><i style="width:${pct(r.apuradas, r.secoes)}%"></i></div>
+      </button>`;
+    })
+    .join("");
+  el.querySelectorAll(".regiao").forEach((b) => bindTip(b.querySelector("[data-tipkey]"), resultados[b.dataset.regiao], b.dataset.regiao));
+}
+
+function renderProjecao(d, d1) {
+  const r = resultadoRecorte(d);
+  const us = unidades(d);
+  const bloco = $("#bloco-projecao");
+  // sem votos ainda, ou apuração encerrada: a projeção não acrescenta nada
+  bloco.hidden = !r || !mostraCandidatos() || !r.apuradas || completo(r) || !us?.length;
+  if (bloco.hidden) return;
+  const proj = projetar(us, d1);
   const porQue = us[0].cidade ? "cidade" : "estado";
   $("#projecao-nota").textContent =
-    r.apuradas === r.secoes
-      ? "Todas as urnas foram apuradas: o resultado projetado é o resultado final."
-      : `Estimativa simples, não é previsão oficial: supõe que as urnas que faltam em cada ${porQue} votam como as já apuradas no mesmo ${porQue}. ` +
-        `Faltam cerca de ${fmt.format(Math.round(proj.restante))} votos válidos.`;
+    `Estimativa simples, não é previsão oficial: supõe que as urnas que faltam em cada ${porQue} votam como as já apuradas no mesmo ${porQue}. ` +
+    `Faltam cerca de ${fmt.format(Math.round(proj.restante))} votos válidos.`;
   const max = Math.max(...proj.candidatos.flatMap((c) => [pct(c.votos, proj.validosAtual), pct(c.projetado, proj.validos)]), 1);
   $("#projecao").innerHTML =
     `<div class="legenda-proj"><span><i></i>Agora</span><span><i class="proj"></i>Projetado</span></div>` +
     proj.candidatos
-      .slice(0, 6)
+      .slice(0, 5)
       .map((c) => {
-        const agora = pct(c.votos, proj.validosAtual), fim = pct(c.projetado, proj.validos);
+        const agora = pct(c.votos, proj.validosAtual), final = pct(c.projetado, proj.validos);
         return `<div class="proj-row">
           <div>${sw(c)} <b>${esc(nomeCurto(c))}</b></div>
           <div class="barras">
             <div class="bar"><i style="width:${(agora / max) * 100}%;background:${cor(c.numero)}"></i></div>
-            <div class="bar proj"><i style="width:${(fim / max) * 100}%;background:${cor(c.numero)}"></i></div>
+            <div class="bar proj"><i style="width:${(final / max) * 100}%;background:${cor(c.numero)}"></i></div>
           </div>
-          <div class="vals">${pctFmt.format(agora)}% → <b>${pctFmt.format(fim)}%</b><br><small>${delta(fim - agora)}</small></div>
+          <div class="vals">${pctFmt.format(agora)}% → <b>${pctFmt.format(final)}%</b><br>${delta(final - agora)}</div>
         </div>`;
       })
       .join("");
 }
 
-function renderComparacao() {
+function renderComparacao(d, d1) {
   const bloco = $("#bloco-comparacao");
   const rec = cfg.recorte;
-  bloco.hidden = cfg.turno !== "2" || !state.t1;
+  bloco.hidden = !d1?.carregado || !d1.brasil;
   if (bloco.hidden) return;
-  const ufs = ufsDoRecorte(rec).filter((uf) => state.estados[uf] && state.t1.estados[uf]);
-  const nacional = !governador() ? resultadoRecorte(rec) : null;
-  const linhas = ufs.map((uf) => ({ nome: UFS[uf][0], uf, r2: state.estados[uf], r1: state.t1.estados[uf] }));
-  if (ufs.length > 1 && !governador()) linhas.push({ nome: `Total ${nomeRecorte(rec)}`, uf: "", r2: resultadoRecorte(rec), r1: resultadoRecorte(rec, state.t1), total: true });
-  if (!linhas.length) {
+  const ufs = ufsDoRecorte(rec).filter((uf) => d.estados[uf] && d1.estados[uf]);
+  const nacional = !governador() ? resultadoRecorte(d) : null;
+  const linhas = ufs.map((uf) => ({ nome: UFS[uf][0], uf, r2: d.estados[uf], r1: d1.estados[uf] }));
+  if (ufs.length > 1 && !governador()) linhas.push({ nome: `Total · ${nomeRecorte(rec)}`, uf: "", r2: resultadoRecorte(d), r1: resultadoRecorte(d1), total: true });
+  if (!linhas.length || (nacional && nacional.candidatos.length < 2)) {
     bloco.hidden = true;
     return;
   }
   $("#comparacao-nota").textContent =
-    "Percentual dos votos válidos de cada candidato no 1º turno e no 2º (até agora). " +
-    "No 2º turno os votos dos outros candidatos se redistribuem, por isso os dois tendem a crescer.";
+    "Percentual dos votos válidos de cada candidato no 1º turno e no 2º (até agora). Clique num estado para filtrar.";
   const celula = (r1, r2, c) => {
     if (!c) return "<td></td><td></td>";
     const p1 = pct(votosDe(r1, c.numero), r1.validos), p2 = pct(votosDe(r2, c.numero), r2.validos);
@@ -413,128 +673,62 @@ function renderComparacao() {
     return `<td class="r">${nome}${pctFmt.format(p1)}% → <b>${pctFmt.format(p2)}%</b></td><td class="r">${delta(p2 - p1)}</td>`;
   };
   const cab = nacional
-    ? nacional.candidatos.slice(0, 2).map((c) => `<th class="r">${sw(c)} ${esc(nomeCurto(c))}</th><th class="r">Variação</th>`).join("")
+    ? nacional.candidatos.slice(0, 2).map((c) => `<th class="r"><span class="cel-cand">${sw(c)} ${esc(nomeCurto(c))}</span></th><th class="r">Variação</th>`).join("")
     : `<th class="r">1º colocado</th><th class="r">Variação</th><th class="r">2º colocado</th><th class="r">Variação</th>`;
   $("#tabela-comparacao").innerHTML =
     `<thead><tr><th>Estado</th>${cab}<th class="r">Comparecimento</th></tr></thead><tbody>` +
     linhas
       .map((l) => {
         const cands = (nacional || l.r2).candidatos.slice(0, 2);
-        const comp1 = pct(l.r1.comparecimento, l.r1.eleitores), comp2 = pct(l.r2.comparecimento, l.r2.eleitores);
-        return `<tr class="${l.uf && l.uf === rec ? "sel" : ""}"><td>${l.total ? `<b>${esc(l.nome)}</b>` : `<b>${l.uf}</b> <span class="muted">${esc(l.nome)}</span>`}</td>
+        const c1 = pct(l.r1.comparecimento, l.r1.eleitores), c2 = pct(l.r2.comparecimento, l.r2.eleitores);
+        return `<tr class="${l.uf ? "clicavel" : ""} ${l.uf && l.uf === rec ? "sel" : ""}" ${l.uf ? `data-uf="${l.uf}"` : ""}>
+          <td>${l.total ? `<b>${esc(l.nome)}</b>` : `<b>${l.uf}</b> <span class="muted">${esc(l.nome)}</span>`}</td>
           ${celula(l.r1, l.r2, cands[0])}${celula(l.r1, l.r2, cands[1])}
-          <td class="r">${l.r2.eleitores ? `${pctFmt.format(comp2)}% ${delta(comp2 - comp1)}` : "—"}</td></tr>`;
+          <td class="r">${l.r2.eleitores ? `${pctFmt.format(c2)}% ${delta(c2 - c1)}` : "—"}</td></tr>`;
       })
       .join("") +
     "</tbody>";
 }
 
-function itemRanking(u, extra = "") {
+function itemRanking(u, extra) {
   const [a] = u.r.candidatos;
-  return `<li><div class="linha"><span><b>${esc(u.nome)}</b></span>
+  return `<li><div class="linha"><b>${esc(u.nome)}</b>
     <span>${a ? `${sw(a)} ${esc(nomeCurto(a))} <b>+${pctFmt.format(margem(u.r))} p.p.</b>` : "—"}</span></div>
-    <div class="linha muted"><span>${pctStr(u.r.apuradas, u.r.secoes)} apurado</span><span>${extra}</span></div>
-    ${stack(u.r, 'data-tipkey="1"')}</li>`;
+    <div class="linha sub"><span>${pctStr(u.r.apuradas, u.r.secoes)} apurado</span><span>${extra}</span></div>
+    ${stack(u.r)}</li>`;
 }
 
-function renderRankings() {
+function renderRankings(d, d1) {
   const rec = cfg.recorte;
-  const us = (unidades(rec) || []).filter((u) => u.r.validos);
+  const todas = unidades(d) || [];
+  const us = todas.filter((u) => u.r.validos);
   const tipo = ehUF(rec) ? "cidades" : "estados";
-  $("#titulo-apertadas").textContent = `Disputas mais apertadas (${tipo})`;
-  $("#titulo-folgadas").textContent = `Maiores vantagens (${tipo})`;
-  const vazio = `<li class="muted">${ehUF(rec) && !state.cidades[rec] ? "Carregando cidades…" : "Sem votos apurados ainda."}</li>`;
+  $("#titulo-apertadas").textContent = `Disputas mais apertadas · ${tipo}`;
+  $("#titulo-folgadas").textContent = `Maiores vantagens · ${tipo}`;
+  $("#titulo-faltam").textContent = `Onde faltam mais votos · ${tipo}`;
+  const vazio = `<li class="vazio">${ehUF(rec) && !d.cidades[rec]?.some((m) => m.r) ? "Carregando as cidades…" : "Sem votos apurados ainda."}</li>`;
   const porMargem = [...us].sort((x, y) => margem(x.r) - margem(y.r));
   // nas cidades, ignora as muito pequenas para o ranking de apertadas não virar só lugarejo
   const minimo = ehUF(rec) ? 2000 : 0;
   const apertadas = porMargem.filter((u) => u.r.validos >= minimo).slice(0, 6);
   const folgadas = porMargem.slice(-6).reverse();
-  const preencher = (el, lista) => {
-    el.innerHTML = lista.length ? lista.map((u) => itemRanking(u, `${fmt.format(u.r.validos)} válidos`)).join("") : vazio;
-    el.querySelectorAll("li").forEach((li, i) => lista[i] && bindTip(li.querySelector("[data-tipkey]"), lista[i].r, lista[i].nome));
-  };
-  preencher($("#apertadas"), apertadas);
-  preencher($("#folgadas"), folgadas);
-
-  const todos = unidades(rec) || [];
-  const faltam = todos
-    .map((u) => ({ ...u, rest: restanteEstimado(u.r, !u.cidade ? state.t1?.estados[u.id] : null) }))
+  const faltam = todas
+    .map((u) => ({ ...u, rest: restanteEstimado(u.r, !u.cidade ? d1?.estados[u.id] : null) }))
     .filter((u) => u.rest > 0)
     .sort((x, y) => y.rest - x.rest)
     .slice(0, 6);
-  $("#titulo-faltam").textContent = `Onde faltam mais votos (${tipo})`;
-  const el = $("#faltam");
-  el.innerHTML = faltam.length
-    ? faltam.map((u) => itemRanking(u, `faltam ~${fmt.format(Math.round(u.rest))} válidos`)).join("")
-    : `<li class="muted">${todos.length ? "Todas as urnas daqui já foram apuradas." : vazio}</li>`;
-  el.querySelectorAll("li").forEach((li, i) => faltam[i] && bindTip(li.querySelector("[data-tipkey]"), faltam[i].r, faltam[i].nome));
+  const preencher = (el, lista, extra, msgVazio = vazio) => {
+    el.innerHTML = lista.length ? lista.map((u) => itemRanking(u, extra(u))).join("") : msgVazio;
+    el.querySelectorAll("li").forEach((li, i) => lista[i] && bindTip(li.querySelector("[data-tipkey]"), lista[i].r, lista[i].nome));
+  };
+  preencher($("#apertadas"), apertadas, (u) => `${fmt.format(u.r.validos)} válidos`);
+  preencher($("#folgadas"), folgadas, (u) => `${fmt.format(u.r.validos)} válidos`);
+  preencher($("#faltam"), faltam, (u) => `faltam ~${fmt.format(Math.round(u.rest))} válidos`, vazio);
+  // com tudo apurado, a lista de "onde faltam votos" não tem o que mostrar
+  $("#bloco-faltam").hidden = !faltam.length && todas.length > 0;
 }
 
-function renderAnalises() {
-  renderResumo();
-  renderProjecao();
-  renderComparacao();
-  renderRankings();
-}
-
-// ------------------------------------------------------------- render: regiões, estados, cidades
-
-function renderRegioes() {
-  const el = $("#regioes");
-  el.innerHTML = "";
-  for (const reg of REGIOES) {
-    const ufs = Object.keys(UFS).filter((uf) => UFS[uf][1] === reg && state.estados[uf]);
-    if (!ufs.length) continue;
-    const r = aggregate(ufs.map((uf) => state.estados[uf]));
-    const card = document.createElement("div");
-    card.className = "regiao";
-    const cands = !governador()
-      ? `<div class="linha"><span>Votos válidos</span><span></span></div>
-         ${stack(r, 'data-tipkey="1"')}
-         ${r.candidatos.slice(0, 6).map((c) => `<div class="linha"><span>${sw(c)} ${esc(nomeCurto(c))}</span><span>${pctStr(c.votos, r.validos)}</span></div>`).join("")}`
-      : "";
-    card.innerHTML = `
-      <h3>${reg} <span class="muted">(${ufs.join(", ")})</span></h3>
-      <div class="linha"><span>Urnas apuradas</span><span>${fmt.format(r.apuradas)} / ${fmt.format(r.secoes)}</span></div>
-      ${progress(r)}
-      <div class="linha"><span>Comparecimento</span><span>${pctStr(r.comparecimento, r.eleitores)}</span></div>
-      ${cands}`;
-    bindTip(card.querySelector("[data-tipkey]"), r, reg);
-    el.append(card);
-  }
-  if (!el.children.length) el.innerHTML = `<p class="muted">Sem dados por estado.</p>`;
-}
-
-function candidatosRef() {
-  // colunas da tabela: candidatos na ordem do resultado nacional (ou do 1º estado com dados)
-  const ref = state.brasil || Object.values(state.estados).find(Boolean);
-  return ref ? ref.candidatos.slice(0, 4) : [];
-}
-
-function cabecalho(primeira, cands) {
-  const colunas = governador()
-    ? `<th>1º colocado</th><th>2º colocado</th>`
-    : cands.map((c) => `<th class="r"><span class="cand-pct">${sw(c)}${esc(nomeCurto(c))}</span></th>`).join("");
-  return `<thead><tr><th>${primeira}</th><th>Urnas apuradas</th><th class="r">Seções</th>${colunas}<th>Votos válidos</th><th>Liderando</th></tr></thead>`;
-}
-
-function celulasCandidatos(r, cands) {
-  if (governador()) {
-    return [0, 1]
-      .map((i) => {
-        const c = r.candidatos[i];
-        return c ? `<td><span class="cand-pct">${sw(c)}${esc(nomeCurto(c))} <b>${pctStr(c.votos, r.validos)}</b></span></td>` : "<td>—</td>";
-      })
-      .join("");
-  }
-  return cands.map((c) => `<td class="r"><span class="cand-pct">${pctStr(votosDe(r, c.numero), r.validos)}</span></td>`).join("");
-}
-
-function liderCell(r) {
-  const [a] = r.candidatos;
-  if (!a || !r.validos) return "<td>—</td>";
-  return `<td><span class="cand-pct">${sw(a)}${esc(nomeCurto(a))} <span class="muted">+${pctFmt.format(margem(r))}</span></span></td>`;
-}
+// ------------------------------------------------------------- tabelas
 
 function ordenar(rows, ordem) {
   const key = {
@@ -549,311 +743,257 @@ function ordenar(rows, ordem) {
   });
 }
 
-function renderEstados() {
-  const filtroReg = $("#filtro-regiao").value;
-  const cands = candidatosRef();
+function colunasCandidatos(ref, porLinha) {
+  // presidente: uma coluna por candidato (até 4); governador entre estados: 1º e 2º colocado de cada linha
+  if (porLinha) {
+    return {
+      cab: `<th>1º colocado</th><th>2º colocado</th>`,
+      cel: (r) => [0, 1].map((i) => {
+        const c = r.candidatos[i];
+        return c && r.validos ? `<td><span class="cel-cand">${sw(c)}${esc(nomeCurto(c))} <b>${pctStr(c.votos, r.validos)}</b></span></td>` : "<td>—</td>";
+      }).join(""),
+    };
+  }
+  const cands = ref ? ref.candidatos.slice(0, 4) : [];
+  return {
+    cab: cands.map((c) => `<th class="r"><span class="cel-cand">${sw(c)}${esc(nomeCurto(c))}</span></th>`).join(""),
+    cel: (r) => cands.map((c) => `<td class="r">${r.validos ? pctStr(votosDe(r, c.numero), r.validos) : "—"}</td>`).join(""),
+  };
+}
+
+function liderCell(r) {
+  const [a] = r.candidatos;
+  if (!a || !r.validos) return "<td>—</td>";
+  return `<td><span class="cel-cand">${sw(a)}${esc(nomeCurto(a))} <span class="muted">+${pctFmt.format(margem(r))}</span></span></td>`;
+}
+
+function renderEstados(d) {
+  const rec = cfg.recorte;
+  const regiao = !rec ? "" : rec.startsWith("R:") ? rec.slice(2) : UFS[rec][1];
+  const filtra = regiao && regiao !== "Exterior";
+  $("#titulo-estados").textContent = filtra ? `Estados · Região ${regiao}` : "Estados";
   const rows = Object.keys(UFS)
-    .filter((uf) => state.estados[uf] && (!filtroReg || UFS[uf][1] === filtroReg))
-    .map((uf) => ({ uf, nome: UFS[uf][0], r: state.estados[uf] }));
+    .filter((uf) => d.estados[uf] && (!filtra || UFS[uf][1] === regiao))
+    .map((uf) => ({ uf, nome: UFS[uf][0], r: d.estados[uf] }));
   ordenar(rows, $("#ordem-estados").value);
+  const cols = colunasCandidatos(resultadoRecorte(d, filtra ? `R:${regiao}` : ""), governador());
   const t = $("#tabela-estados");
+  if (!rows.length) {
+    t.innerHTML = `<tbody><tr><td class="muted">${d.carregado ? "Sem dados por estado neste turno e cargo." : "Carregando…"}</td></tr></tbody>`;
+    return;
+  }
   t.innerHTML =
-    cabecalho("Estado", cands) +
-    "<tbody>" +
+    `<thead><tr><th>Estado</th><th>Urnas apuradas</th>${cols.cab}<th>Votos válidos</th><th>Liderando</th></tr></thead><tbody>` +
     rows
-      .map((x) => `<tr class="clicavel ${x.uf === cfg.recorte ? "sel" : ""}" data-uf="${x.uf}"><td><b>${x.uf}</b> <span class="muted">${esc(x.nome)}</span></td>
-        <td>${progress(x.r)}</td><td class="r">${fmt.format(x.r.apuradas)}/${fmt.format(x.r.secoes)}</td>
-        ${celulasCandidatos(x.r, cands)}<td style="min-width:140px">${stack(x.r, 'data-tipkey="1"')}</td>${liderCell(x.r)}</tr>`)
+      .map((x) => `<tr class="clicavel ${x.uf === rec ? "sel" : ""}" data-uf="${x.uf}">
+        <td><b>${x.uf}</b> <span class="muted">${esc(x.nome)}</span></td>
+        <td style="min-width:150px">${progress(x.r)}</td>${cols.cel(x.r)}
+        <td style="min-width:140px">${stack(x.r)}</td>${liderCell(x.r)}</tr>`)
       .join("") +
     "</tbody>";
-  t.querySelectorAll("tr[data-uf]").forEach((tr) => bindTip(tr.querySelector("[data-tipkey]"), state.estados[tr.dataset.uf], UFS[tr.dataset.uf][0]));
-  if (!rows.length) t.innerHTML = `<tr><td class="muted">Sem dados por estado para este cargo e turno.</td></tr>`;
+  t.querySelectorAll("tr[data-uf]").forEach((tr) => bindTip(tr.querySelector("[data-tipkey]"), d.estados[tr.dataset.uf], UFS[tr.dataset.uf][0]));
 }
 
 const semAcento = (s) => s.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/\p{M}/gu, "");
 
-function renderCidades() {
-  const uf = $("#filtro-uf").value;
-  const lista = state.cidades[uf];
+function renderCidades(d) {
+  const uf = ufDasCidades();
+  $("#cidades-uf").value = uf;
+  $("#titulo-cidades").textContent = uf ? `Cidades · ${UFS[uf][0]}` : "Cidades";
   const t = $("#tabela-cidades");
-  if (!lista) { t.innerHTML = ""; return; }
+  if (!uf) {
+    $("#cidades-status").textContent = "Escolha um estado para ver as cidades.";
+    t.innerHTML = "";
+    return;
+  }
+  const lista = d.cidades[uf];
+  if (!lista) {
+    $("#cidades-status").textContent = "Carregando as cidades…";
+    t.innerHTML = "";
+    return;
+  }
   const busca = semAcento($("#busca-cidade").value.trim());
-  const cands = (state.estados[uf] || state.brasil || { candidatos: [] }).candidatos.slice(0, 4);
   const rows = lista.filter((m) => m.r && (!busca || semAcento(m.nome).includes(busca)));
   ordenar(rows, $("#ordem-cidades").value);
-  const visiveis = rows.slice(0, 500);
-  // cidades usam as colunas do estado, mesmo para governador
-  const colunas = cands.map((c) => `<th class="r"><span class="cand-pct">${sw(c)}${esc(nomeCurto(c))}</span></th>`).join("");
+  const visiveis = rows.slice(0, 300);
+  const cols = colunasCandidatos(d.estados[uf], false);
   t.innerHTML =
-    `<thead><tr><th>Cidade</th><th>Urnas apuradas</th><th class="r">Seções</th>${colunas}<th>Votos válidos</th><th>Liderando</th></tr></thead>` +
-    "<tbody>" +
+    `<thead><tr><th>Cidade</th><th>Urnas apuradas</th>${cols.cab}<th>Votos válidos</th><th>Liderando</th></tr></thead><tbody>` +
     visiveis
       .map((m, i) => `<tr data-i="${i}"><td>${esc(m.nome)}${m.capital ? '<span class="tag">capital</span>' : ""}</td>
-        <td>${progress(m.r)}</td><td class="r">${fmt.format(m.r.apuradas)}/${fmt.format(m.r.secoes)}</td>
-        ${cands.map((c) => `<td class="r">${pctStr(votosDe(m.r, c.numero), m.r.validos)}</td>`).join("")}
-        <td style="min-width:140px">${stack(m.r, 'data-tipkey="1"')}</td>${liderCell(m.r)}</tr>`)
+        <td style="min-width:150px">${progress(m.r)}</td>${cols.cel(m.r)}
+        <td style="min-width:140px">${stack(m.r)}</td>${liderCell(m.r)}</tr>`)
       .join("") +
     "</tbody>";
   t.querySelectorAll("tr[data-i]").forEach((tr) => {
     const m = visiveis[Number(tr.dataset.i)];
     bindTip(tr.querySelector("[data-tipkey]"), m.r, `${m.nome} (${uf})`);
   });
-  const apuradas = lista.filter((m) => m.r && m.r.secoes && m.r.apuradas === m.r.secoes).length;
+  const carregadas = lista.filter((m) => m.r).length;
+  const fim = lista.filter((m) => completo(m.r)).length;
   $("#cidades-status").textContent =
-    `${fmt.format(lista.filter((m) => m.r).length)} de ${fmt.format(lista.length)} cidades carregadas · ` +
-    `${fmt.format(apuradas)} com 100% das urnas apuradas` + (rows.length > visiveis.length ? ` · mostrando as primeiras ${visiveis.length}` : "");
+    (carregadas < lista.length ? `Carregando: ${fmt.format(carregadas)} de ${fmt.format(lista.length)} cidades · ` : `${fmt.format(lista.length)} cidades · `) +
+    `${fmt.format(fim)} com todas as urnas apuradas` +
+    (rows.length > visiveis.length ? ` · mostrando ${visiveis.length} de ${fmt.format(rows.length)} (use a busca)` : "");
 }
+
+// ------------------------------------------------------------- render geral
+
+let aba = "analises";
 
 function renderAll() {
-  renderKpis();
-  renderPrincipal();
-  renderAnalises();
-  renderRegioes();
-  renderEstados();
-  if (state.aba === "cidades") renderCidades();
-}
-
-// ------------------------------------------------------------- carga
-
-function setStatus(msg, erro = false) {
-  const el = $("#status");
-  el.textContent = msg;
-  el.classList.toggle("erro", erro);
-}
-
-const carregandoCidades = new Map(); // UF -> Promise
-
-function carregarCidades(uf) {
-  if (carregandoCidades.has(uf)) return carregandoCidades.get(uf);
-  const p = (async () => {
-    const lista = (await source.listaMunicipios())[uf] || [];
-    const anterior = new Map((state.cidades[uf] || []).map((m) => [m.codigo, m.r]));
-    state.cidades[uf] = lista.map((m) => ({ ...m, r: anterior.get(m.codigo) || null }));
-    if ($("#filtro-uf").value === uf) $("#cidades-status").textContent = `Carregando ${lista.length} cidades…`;
-    let feitas = 0;
-    const atualizarTela = () => {
-      if (state.aba === "cidades" && $("#filtro-uf").value === uf) renderCidades();
-      if (cfg.recorte === uf) renderAnalises();
-    };
-    await pool(state.cidades[uf], async (m) => {
-      m.r = await source.municipio(uf, m.codigo);
-      if (++feitas % 60 === 0) atualizarTela();
-    });
-    atualizarTela();
-  })().finally(() => carregandoCidades.delete(uf));
-  carregandoCidades.set(uf, p);
-  return p;
-}
-
-async function carregarT1() {
-  if (!sourceT1 || state.t1) return;
-  const ufs = Object.keys(UFS);
-  const [br, ...estados] = await Promise.all([sourceT1.brasil().catch(() => null), ...ufs.map((uf) => sourceT1.estado(uf).catch(() => null))]);
-  if (!br && !estados.some(Boolean)) return;
-  state.t1 = { brasil: br || aggregate(estados), estados: Object.fromEntries(ufs.map((uf, i) => [uf, estados[i]])) };
-}
-
-let carregando = false;
-
-async function atualizar() {
-  if (carregando) return;
-  carregando = true;
-  const fonte = cfg.fonte === "demo" ? "Simulação" : `TSE · ${NOME_TURNO[cfg.turno]} ${codigoEleicao(cfg)}`;
-  setStatus(`${fonte} · ${CARGOS[cfg.cargo]} · atualizando…`);
-  try {
-    if (cfg.fonte === "tse" && !codigoEleicao(cfg)) throw new Error("Informe o código da eleição (o botão “?” procura no TSE) ou escolha um turno.");
-    const ufs = Object.keys(UFS);
-    let erroBr = null;
-    const [br, ...estados] = await Promise.all([
-      source.brasil().catch((e) => ((erroBr = e), null)),
-      ...ufs.map((uf) => source.estado(uf).catch(() => null)),
-      carregarT1().catch(() => null),
-    ]);
-    ufs.forEach((uf, i) => (state.estados[uf] = estados[i]));
-    state.brasil = br || (estados.slice(0, ufs.length).some(Boolean) ? aggregate(estados.slice(0, ufs.length)) : null);
-    if (!state.brasil && erroBr?.semAcesso) throw erroBr;
-    if (!state.brasil) {
-      throw new Error(
-        "O TSE ainda não publicou resultados para esse turno e cargo. No domingo, a apuração começa às 17h (Brasília). " +
-          "Para ver o painel funcionando antes disso, use o 1º turno ou a Simulação.",
-      );
-    }
-    // fixa as cores na 1ª leitura (mais votados primeiro; sem votos, pela ordem dos números),
-    // para não mudarem quando a liderança muda
-    if (!state.cores.size) {
-      const temVotos = state.brasil.candidatos.some((c) => c.votos > 0);
-      [...state.brasil.candidatos]
-        .sort((a, b) => (temVotos ? b.votos - a.votos : a.numero.localeCompare(b.numero, undefined, { numeric: true })))
-        .forEach((c) => cor(c.numero));
-    }
-    renderAll();
-    const hora = state.brasil.atualizadoEm ? ` · totalização de ${state.brasil.atualizadoEm}` : "";
-    setStatus(`${fonte} · ${CARGOS[cfg.cargo]}${hora} · lido às ${new Date().toLocaleTimeString("pt-BR")}`);
-    const ufsCidades = new Set();
-    if (ehUF(cfg.recorte)) ufsCidades.add(cfg.recorte);
-    if (state.aba === "cidades") ufsCidades.add($("#filtro-uf").value);
-    await Promise.all([...ufsCidades].map((uf) => carregarCidades(uf)));
-  } catch (err) {
-    setStatus(err.message, true);
-    renderAll();
-  } finally {
-    carregando = false;
+  const d = atual();
+  const d1 = primeiroTurno();
+  renderTopo(d);
+  renderPlacar(d);
+  renderMini(d);
+  renderMapa(d);
+  if (aba === "analises") {
+    renderResumo(d, d1);
+    renderRegioes(d);
+    renderProjecao(d, d1);
+    renderComparacao(d, d1);
+    renderRankings(d, d1);
+  } else if (aba === "estados") {
+    renderEstados(d);
+  } else {
+    renderCidades(d);
   }
 }
 
-function agendar() {
-  clearInterval(timer);
-  if (cfg.auto) timer = setInterval(atualizar, REFRESH_MS);
+// enquanto as cidades chegam, redesenha no máximo 2x por segundo
+let renderPendente = null;
+function agendarRender() {
+  if (renderPendente) return;
+  renderPendente = setTimeout(() => {
+    renderPendente = null;
+    renderAll();
+  }, 500);
 }
+
+// ------------------------------------------------------------- atualização
+
+let geracao = 0;
+
+const ufDasCidades = () => (ehUF(cfg.recorte) && cfg.recorte !== "ZZ" ? cfg.recorte : "");
+
+/**
+ * Atualiza o que está na tela. Cada chamada substitui a anterior (nada é ignorado):
+ * a tela é redesenhada na hora com o que já está em cache e de novo quando os dados chegam.
+ */
+async function atualizar({ forcar = false } = {}) {
+  const gen = ++geracao;
+  const d = atual();
+  const d1 = primeiroTurno();
+  renderAll();
+  const tarefas = [];
+  // apuração encerrada não muda mais: não precisa baixar de novo
+  if (!d.carregado || forcar || !completo(d.brasil)) tarefas.push(carregarEstados(d));
+  if (d1 && !d1.carregado) tarefas.push(carregarEstados(d1));
+  if (tarefas.length) {
+    carregandoAgora = true;
+    renderTopo(d);
+    await Promise.all(tarefas.map((p) => p.catch(() => {})));
+    if (gen === geracao) carregandoAgora = false;
+  }
+  if (gen !== geracao) return;
+  fixarCores(d);
+  renderAll();
+
+  const uf = ufDasCidades();
+  if (uf && d.brasil && (!d.cidades[uf] || forcar || !completo(d.estados[uf]) || d.cidades[uf].some((m) => !m.r))) {
+    await carregarCidades(d, uf, () => atual() === d && ufDasCidades() === uf).catch(() => {});
+    if (atual() === d) renderAll();
+  }
+}
+
+function escolherRecorte(rec) {
+  cfg.recorte = rec;
+  saveConfig();
+  atualizar();
+}
+
+setInterval(() => {
+  if (!document.hidden) atualizar();
+}, REFRESH_MS);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) atualizar();
+});
 
 // ------------------------------------------------------------- eventos
 
-const form = $("#config");
-
-function mostrarCampos() {
-  const tse = form.elements.fonte.value === "tse";
-  if (!tse && form.elements.turno.value === "outro") form.elements.turno.value = "2";
-  form.querySelectorAll(".tse-only").forEach((el) => (el.hidden = !tse));
-  form.querySelectorAll(".outro-only").forEach((el) => (el.hidden = !tse || form.elements.turno.value !== "outro"));
-}
-
-function syncForm() {
-  for (const [k, v] of Object.entries(cfg)) {
-    const el = form.elements[k];
-    if (!el) continue;
-    if (el.type === "checkbox") el.checked = v;
-    else el.value = v;
-  }
-  if (cfg.turno === "outro" && !cfg.eleicao) form.elements.eleicao.value = "";
-  mostrarCampos();
-}
-
-form.addEventListener("change", (ev) => {
-  mostrarCampos();
-  // mudar fonte, turno ou cargo já recarrega, sem precisar do botão
-  if (["fonte", "turno", "cargo"].includes(ev.target.name) && !(ev.target.name === "turno" && ev.target.value === "outro")) {
-    form.requestSubmit();
-  }
-});
-
-form.addEventListener("submit", (ev) => {
-  ev.preventDefault();
-  const novo = {
-    ...cfg,
-    fonte: form.elements.fonte.value,
-    turno: form.elements.turno.value,
-    ano: form.elements.ano.value.trim() || "2026",
-    eleicao: form.elements.eleicao.value.trim().replace(/^0+/, ""),
-    cargo: form.elements.cargo.value,
-    auto: form.elements.auto.checked,
-  };
-  const mudouFonte = ["fonte", "turno", "ano", "eleicao", "cargo"].some((k) => novo[k] !== cfg[k]);
-  cfg = novo;
-  saveConfig();
-  if (mudouFonte) buildSource();
-  agendar();
-  atualizar();
-});
-
-$("#descobrir").addEventListener("click", async () => {
-  const ul = $("#lista-eleicoes");
-  ul.innerHTML = "<li>Procurando…</li>";
-  $("#dlg-eleicoes").showModal();
-  try {
-    const lista = (await TseSource.descobrirEleicoes(TSE_BASE, form.elements.ano.value.trim())).filter(
-      (e) => e.cargos.includes("Presidente") || e.cargos.includes("Governador"),
-    );
-    ul.innerHTML = lista.length
-      ? lista
-          .map((e) => {
-            const cargo = e.cargos.includes("Presidente") ? "0001" : "0003";
-            return `<li><b>${esc(e.codigo)}</b> — ${esc(e.nome)} (${esc(e.data)}) <button data-cod="${esc(e.codigo)}" data-cargo="${cargo}">usar</button></li>`;
-          })
-          .join("")
-      : "<li>Nenhuma eleição encontrada para esse ano.</li>";
-  } catch (err) {
-    ul.innerHTML = `<li class="erro">${esc(err.message)}</li>`;
-  }
-});
-
-$("#lista-eleicoes").addEventListener("click", (ev) => {
-  const cod = ev.target.dataset?.cod;
-  if (!cod) return;
-  form.elements.cargo.value = ev.target.dataset.cargo;
-  const turno = Object.keys(TURNOS).find((t) => TURNOS[t][ev.target.dataset.cargo] === cod);
-  form.elements.turno.value = turno || "outro";
-  form.elements.eleicao.value = cod;
-  $("#dlg-eleicoes").close();
-  mostrarCampos();
-  form.requestSubmit();
-});
-
-function abrirAba(aba) {
-  state.aba = aba;
-  document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", String(x.dataset.tab === aba)));
-  document.querySelectorAll(".tab-panel").forEach((p) => (p.hidden = p.id !== "tab-" + aba));
-  if (aba === "cidades") {
-    renderCidades();
-    const uf = $("#filtro-uf").value;
-    if (!state.cidades[uf]) carregarCidades(uf).catch((e) => ($("#cidades-status").textContent = e.message));
-  }
-}
-
-document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => abrirAba(b.dataset.tab)));
-
-// ---- recorte
 const ufsPorNome = Object.keys(UFS).sort((a, b) => UFS[a][0].localeCompare(UFS[b][0], "pt-BR"));
 $("#recorte").innerHTML =
   `<option value="">Brasil</option>` +
-  `<optgroup label="Regiões">${REGIOES.filter((r) => r !== "Exterior").map((r) => `<option value="R:${r}">${r}</option>`).join("")}</optgroup>` +
-  `<optgroup label="Estados">${ufsPorNome.map((uf) => `<option value="${uf}">${UFS[uf][0]} (${uf})</option>`).join("")}</optgroup>`;
+  `<optgroup label="Regiões">${REGIOES.filter((r) => r !== "Exterior").map((r) => `<option value="R:${r}">Região ${r}</option>`).join("")}</optgroup>` +
+  `<optgroup label="Estados">${ufsPorNome.map((uf) => `<option value="${uf}">${UFS[uf][0]}</option>`).join("")}</optgroup>`;
+$("#cidades-uf").innerHTML =
+  `<option value="">Escolha um estado</option>` +
+  ufsPorNome.filter((uf) => uf !== "ZZ").map((uf) => `<option value="${uf}">${UFS[uf][0]}</option>`).join("");
 
-function aplicarRecorte() {
-  const rec = cfg.recorte;
-  $("#recorte").value = rec;
-  $("#filtro-regiao").value = !rec ? "" : rec.startsWith("R:") ? rec.slice(2) : UFS[rec][1] === "Exterior" ? "" : UFS[rec][1];
-  if (ehUF(rec)) {
-    $("#filtro-uf").value = rec;
-    $("#recorte-info").textContent = "Análises por cidade deste estado.";
-    if (source && !state.cidades[rec]) carregarCidades(rec).catch(() => {});
-  } else {
-    $("#recorte-info").textContent = "";
-  }
-}
+$("#recorte").addEventListener("change", (ev) => escolherRecorte(ev.target.value));
+$("#cidades-uf").addEventListener("change", (ev) => escolherRecorte(ev.target.value));
+$("#voltar").addEventListener("click", () => escolherRecorte(""));
+$("#chip-exterior").addEventListener("click", () => escolherRecorte("ZZ"));
 
-$("#recorte").addEventListener("change", () => {
-  cfg.recorte = $("#recorte").value;
+document.querySelectorAll("#seg-turno button").forEach((b) =>
+  b.addEventListener("click", () => {
+    cfg.turno = b.dataset.v;
+    saveConfig();
+    atualizar();
+  }),
+);
+document.querySelectorAll("#seg-cargo button").forEach((b) =>
+  b.addEventListener("click", () => {
+    cfg.cargo = b.dataset.v;
+    saveConfig();
+    atualizar();
+  }),
+);
+$("#fonte").addEventListener("change", (ev) => {
+  cfg.fonte = ev.target.value;
   saveConfig();
-  aplicarRecorte();
-  renderAll();
+  atualizar();
+});
+$("#btn-atualizar").addEventListener("click", () => atualizar({ forcar: true }));
+
+document.querySelectorAll("#seg-mapa button").forEach((b) =>
+  b.addEventListener("click", () => {
+    modoMapa = b.dataset.v;
+    document.querySelectorAll("#seg-mapa button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    renderMapa(atual());
+  }),
+);
+
+// clicar num estado (mapa, tabelas, placar de governador) filtra por ele
+$("#mapa").addEventListener("click", (ev) => {
+  const p = ev.target.closest("path[data-chave]");
+  if (p && UFS[p.dataset.chave] && (!ehUF(cfg.recorte) || cfg.recorte === "ZZ")) escolherRecorte(p.dataset.chave);
+});
+for (const sel of ["#tabela-estados", "#tabela-comparacao", "#placar"]) {
+  $(sel).addEventListener("click", (ev) => {
+    const el = ev.target.closest("[data-uf]");
+    if (el) escolherRecorte(el.dataset.uf);
+  });
+}
+$("#regioes").addEventListener("click", (ev) => {
+  const el = ev.target.closest("[data-regiao]");
+  if (el) escolherRecorte("R:" + el.dataset.regiao);
 });
 
-$("#filtro-regiao").innerHTML += REGIOES.map((r) => `<option>${r}</option>`).join("");
-$("#filtro-uf").innerHTML = ufsPorNome.map((uf) => `<option value="${uf}" ${uf === "SP" ? "selected" : ""}>${UFS[uf][0]}</option>`).join("");
-
-$("#filtro-regiao").addEventListener("change", renderEstados);
-$("#ordem-estados").addEventListener("change", renderEstados);
-$("#ordem-cidades").addEventListener("change", renderCidades);
-$("#busca-cidade").addEventListener("input", renderCidades);
-$("#filtro-uf").addEventListener("change", () => {
-  const uf = $("#filtro-uf").value;
-  renderCidades();
-  if (!state.cidades[uf]) carregarCidades(uf).catch((e) => ($("#cidades-status").textContent = e.message));
-});
-
-// clicar num estado abre a aba de cidades daquele estado
-$("#tabela-estados").addEventListener("click", (ev) => {
-  const tr = ev.target.closest("tr[data-uf]");
-  if (!tr) return;
-  $("#filtro-uf").value = tr.dataset.uf;
-  abrirAba("cidades");
-});
+document.querySelectorAll(".tabs button").forEach((b) =>
+  b.addEventListener("click", () => {
+    aba = b.dataset.tab;
+    document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+    document.querySelectorAll(".painel").forEach((p) => (p.hidden = p.id !== "tab-" + aba));
+    renderAll();
+  }),
+);
+$("#ordem-estados").addEventListener("change", () => renderEstados(atual()));
+$("#ordem-cidades").addEventListener("change", () => renderCidades(atual()));
+$("#busca-cidade").addEventListener("input", () => renderCidades(atual()));
 
 // ------------------------------------------------------------- início
 
-syncForm();
 await detectarProxy();
-buildSource();
-aplicarRecorte();
-agendar();
 atualizar();

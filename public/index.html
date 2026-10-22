@@ -3,146 +3,168 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Painel de Apuração</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>Apuração 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <h1>Painel de Apuração</h1>
-      <p class="muted" id="status">Carregando…</p>
+  <header class="topo">
+    <div class="topo-in">
+      <div class="marca">
+        <h1>Apuração 2026</h1>
+        <span class="status" id="status" data-estado="carregando"><i></i><span id="status-txt">Carregando…</span></span>
+      </div>
+      <div class="controles">
+        <div class="seg" id="seg-turno" role="group" aria-label="Turno">
+          <button type="button" data-v="1">1º turno</button>
+          <button type="button" data-v="2">2º turno</button>
+        </div>
+        <div class="seg" id="seg-cargo" role="group" aria-label="Cargo">
+          <button type="button" data-v="0001">Presidente</button>
+          <button type="button" data-v="0003">Governador</button>
+        </div>
+        <label class="sr-only" for="recorte">Ver resultado de</label>
+        <select id="recorte" class="recorte"></select>
+        <button type="button" class="icone" id="btn-atualizar" title="Atualizar agora" aria-label="Atualizar agora">↻</button>
+      </div>
     </div>
-    <form id="config" class="config">
-      <label>Fonte
-        <select name="fonte" id="cfg-fonte">
-          <option value="tse">TSE (ao vivo)</option>
-          <option value="demo">Simulação</option>
-        </select>
-      </label>
-      <label>Turno
-        <select name="turno" id="cfg-turno">
-          <option value="2">2º turno (25/10)</option>
-          <option value="1">1º turno (04/10)</option>
-          <option value="outro" class="tse-only">Outro código…</option>
-        </select>
-      </label>
-      <label>Cargo
-        <select name="cargo" id="cfg-cargo">
-          <option value="0001">Presidente</option>
-          <option value="0003">Governador</option>
-        </select>
-      </label>
-      <label class="tse-only outro-only">Ano <input name="ano" id="cfg-ano" size="4" inputmode="numeric"></label>
-      <label class="tse-only outro-only">Cód. eleição
-        <span class="inline"><input name="eleicao" id="cfg-eleicao" size="5" inputmode="numeric" placeholder="ex.: 6258">
-        <button type="button" id="descobrir" title="Procurar o código no TSE">?</button></span>
-      </label>
-      <label class="check"><input type="checkbox" name="auto" id="cfg-auto" checked> Atualizar a cada 30s</label>
-      <button type="submit">Atualizar agora</button>
-    </form>
+    <div class="progresso" aria-live="polite">
+      <div class="progresso-in">
+        <span class="pg-label">Urnas apuradas</span>
+        <b class="pg-valor" id="pg-valor">—</b>
+        <div class="pg-barra"><i id="pg-fill"></i></div>
+        <span class="pg-sub" id="pg-sub"></span>
+      </div>
+    </div>
   </header>
 
   <main>
-    <section class="recorte">
-      <label for="recorte">Ver resultado de</label>
-      <select id="recorte"></select>
-      <span class="muted" id="recorte-info"></span>
-    </section>
+    <p class="aviso" id="aviso" hidden></p>
 
-    <section class="kpis" id="kpis" aria-live="polite"></section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2 id="titulo-recorte">Brasil</h2>
-        <div class="legend" id="legend"></div>
+    <section class="hero">
+      <div class="card placar-card">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow" id="eyebrow">Presidente · 2º turno</p>
+            <h2 id="titulo-recorte">Brasil</h2>
+          </div>
+          <button type="button" class="link" id="voltar" hidden>← Brasil</button>
+        </div>
+        <div id="placar"></div>
+        <dl class="mini" id="mini"></dl>
       </div>
-      <div id="brasil-bars"></div>
+
+      <div class="card mapa-card">
+        <div class="card-head">
+          <h3>Mapa</h3>
+          <div class="seg seg-sm" id="seg-mapa" role="group" aria-label="Cor do mapa">
+            <button type="button" data-v="lider" aria-pressed="true">Quem lidera</button>
+            <button type="button" data-v="apuradas" aria-pressed="false">Urnas apuradas</button>
+          </div>
+        </div>
+        <div class="mapa" id="mapa" aria-label="Mapa do resultado"></div>
+        <div class="mapa-rodape">
+          <div class="mapa-legenda" id="mapa-legenda"></div>
+          <button type="button" class="chip" id="chip-exterior" hidden>Exterior</button>
+        </div>
+      </div>
     </section>
 
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="analises" aria-selected="true">Análises</button>
-      <button role="tab" data-tab="regioes" aria-selected="false">Por região</button>
-      <button role="tab" data-tab="estados" aria-selected="false">Por estado</button>
-      <button role="tab" data-tab="cidades" aria-selected="false">Por cidade</button>
+      <button role="tab" data-tab="estados" aria-selected="false">Estados</button>
+      <button role="tab" data-tab="cidades" aria-selected="false">Cidades</button>
     </nav>
 
-    <section class="tab-panel analises" id="tab-analises">
+    <section class="painel" id="tab-analises">
       <div class="card">
-        <h2>Resumo</h2>
+        <h3>Resumo</h3>
         <ul class="insights" id="resumo"></ul>
       </div>
+      <div class="card" id="bloco-regioes">
+        <h3>Por região</h3>
+        <div class="regioes" id="regioes"></div>
+      </div>
       <div class="card" id="bloco-projecao">
-        <div class="card-head"><h2>Projeção com as urnas que faltam</h2></div>
-        <p class="muted" id="projecao-nota"></p>
+        <h3>Projeção com as urnas que faltam</h3>
+        <p class="nota" id="projecao-nota"></p>
         <div id="projecao"></div>
       </div>
       <div class="card" id="bloco-comparacao" hidden>
-        <div class="card-head"><h2>1º turno × 2º turno</h2></div>
-        <p class="muted" id="comparacao-nota"></p>
+        <h3>1º turno × 2º turno</h3>
+        <p class="nota" id="comparacao-nota"></p>
         <div class="table-wrap"><table id="tabela-comparacao"></table></div>
       </div>
-      <div class="grid-2">
+      <div class="duas">
         <div class="card">
-          <h2 id="titulo-apertadas">Disputas mais apertadas</h2>
+          <h3 id="titulo-apertadas">Disputas mais apertadas</h3>
           <ol class="ranking" id="apertadas"></ol>
         </div>
         <div class="card">
-          <h2 id="titulo-folgadas">Maiores vantagens</h2>
+          <h3 id="titulo-folgadas">Maiores vantagens</h3>
           <ol class="ranking" id="folgadas"></ol>
         </div>
       </div>
       <div class="card" id="bloco-faltam">
-        <h2 id="titulo-faltam">Onde faltam mais votos</h2>
+        <h3 id="titulo-faltam">Onde faltam mais votos</h3>
         <ol class="ranking" id="faltam"></ol>
       </div>
     </section>
 
-    <section class="card tab-panel" id="tab-regioes" hidden>
-      <div class="grid-regioes" id="regioes"></div>
+    <section class="painel" id="tab-estados" hidden>
+      <div class="card">
+        <div class="card-head">
+          <h3 id="titulo-estados">Estados</h3>
+          <label class="inline-label">Ordenar por
+            <select id="ordem-estados">
+              <option value="eleitorado">Eleitorado</option>
+              <option value="apuradas">% urnas apuradas</option>
+              <option value="lider">Vantagem do 1º</option>
+              <option value="nome">Nome</option>
+            </select>
+          </label>
+        </div>
+        <p class="nota">Clique num estado para ver o resultado e o mapa das cidades dele.</p>
+        <div class="table-wrap"><table id="tabela-estados"></table></div>
+      </div>
     </section>
 
-    <section class="card tab-panel" id="tab-estados" hidden>
-      <div class="filters">
-        <label>Região
-          <select id="filtro-regiao"><option value="">Todas</option></select>
-        </label>
-        <label>Ordenar por
-          <select id="ordem-estados">
-            <option value="eleitorado">Eleitorado</option>
-            <option value="apuradas">% urnas apuradas</option>
-            <option value="nome">Nome</option>
-            <option value="lider">Vantagem do 1º</option>
-          </select>
-        </label>
+    <section class="painel" id="tab-cidades" hidden>
+      <div class="card">
+        <div class="card-head">
+          <h3 id="titulo-cidades">Cidades</h3>
+          <div class="filtros">
+            <label class="inline-label">Estado <select id="cidades-uf"></select></label>
+            <input id="busca-cidade" type="search" placeholder="Buscar cidade" aria-label="Buscar cidade">
+            <label class="inline-label">Ordenar por
+              <select id="ordem-cidades">
+                <option value="eleitorado">Eleitorado</option>
+                <option value="apuradas">% urnas apuradas</option>
+                <option value="lider">Vantagem do 1º</option>
+                <option value="nome">Nome</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <p class="nota" id="cidades-status"></p>
+        <div class="table-wrap"><table id="tabela-cidades"></table></div>
       </div>
-      <div class="table-wrap"><table id="tabela-estados"></table></div>
-    </section>
-
-    <section class="card tab-panel" id="tab-cidades" hidden>
-      <div class="filters">
-        <label>Estado <select id="filtro-uf"></select></label>
-        <label>Buscar cidade <input id="busca-cidade" type="search" placeholder="Nome da cidade"></label>
-        <label>Ordenar por
-          <select id="ordem-cidades">
-            <option value="eleitorado">Eleitorado</option>
-            <option value="apuradas">% urnas apuradas</option>
-            <option value="nome">Nome</option>
-            <option value="lider">Vantagem do 1º</option>
-          </select>
-        </label>
-      </div>
-      <p class="muted" id="cidades-status"></p>
-      <div class="table-wrap"><table id="tabela-cidades"></table></div>
     </section>
   </main>
 
-  <dialog id="dlg-eleicoes">
-    <h3>Eleições encontradas no TSE</h3>
-    <ul id="lista-eleicoes"></ul>
-    <form method="dialog"><button>Fechar</button></form>
-  </dialog>
+  <footer class="rodape">
+    <label class="inline-label">Fonte dos dados
+      <select id="fonte">
+        <option value="tse">TSE (ao vivo)</option>
+        <option value="demo">Simulação</option>
+      </select>
+    </label>
+    <span id="rodape-txt">Dados: Tribunal Superior Eleitoral (resultados.tse.jus.br). Mapas: malhas municipais do IBGE. Atualiza sozinho a cada 30 segundos.</span>
+  </footer>
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=4"></script>
 </body>
 </html>

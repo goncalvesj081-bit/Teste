@@ -122,7 +122,7 @@ export class TseSource {
     return parseTse(await this.json(this.file(uf.toLowerCase())));
   }
 
-  /** Lista de municípios por UF: { SP: [{ codigo, nome, capital }] } */
+  /** Lista de municípios por UF: { SP: [{ codigo, nome, cdi, capital }] } */
   async listaMunicipios() {
     if (this.municipios) return this.municipios;
     const e = this.cfg.eleicao.padStart(6, "0");
@@ -132,6 +132,7 @@ export class TseSource {
       this.municipios[abr.cd.toUpperCase()] = (abr.mu || []).map((m) => ({
         codigo: m.cd,
         nome: m.nm,
+        cdi: m.cdi, // código IBGE, usado no mapa
         capital: String(m.c).toLowerCase() === "s",
       }));
     }
@@ -140,6 +141,19 @@ export class TseSource {
 
   async municipio(uf, codigo) {
     return parseTse(await this.json(this.file(uf.toLowerCase() + codigo)));
+  }
+
+  /**
+   * Andamento de todas as cidades de um estado num arquivo só (sem os votos):
+   * Map código da cidade -> seções apuradas. Serve para baixar de novo só as cidades que mudaram.
+   */
+  async andamentoCidades(uf) {
+    const e = this.cfg.eleicao.padStart(6, "0");
+    const u = uf.toLowerCase();
+    const j = await this.json(`${this.root}/dados/${u}/${u}-e${e}-ab.json`);
+    const out = new Map();
+    for (const a of j.abr || []) if (a.tpabr === "mun") out.set(a.cdabr, int(a.s?.st));
+    return out;
   }
 
   /** Lista as eleições publicadas no TSE para o ano (para descobrir o código). */

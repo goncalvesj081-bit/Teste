@@ -1,22 +1,19 @@
 # Painel de Apuração — Eleições 2026
 
 Painel para acompanhar a apuração em tempo real com os dados públicos do TSE
-(`resultados.tse.jus.br`):
+(`resultados.tse.jus.br`), publicado no GitHub Pages.
 
-- **Brasil** — % de urnas (seções) apuradas, comparecimento, abstenção, brancos/nulos,
-  votos e % de cada candidato, diferença entre 1º e 2º.
-- **Por região** — Norte, Nordeste, Centro-Oeste, Sudeste, Sul e Exterior (soma dos estados).
-- **Por estado** — urnas apuradas, % por candidato e quem lidera; filtro por região e ordenação.
-  Clique num estado para abrir as cidades dele.
-- **Por cidade** — todas as cidades do estado, com busca, % de urnas apuradas e votos.
-- **Ver resultado de** — filtra o painel inteiro por Brasil, região ou estado. Num estado,
-  as análises passam a ser por cidade.
-- **Turno** — 1º turno (04/10) ou 2º turno (25/10), para Presidente ou Governador.
-- **Análises** — resumo automático (quem lidera, diferença, quantos votos faltam e quanto o
-  2º colocado precisaria para virar), projeção simples com as urnas que faltam, comparação
-  1º × 2º turno por estado (inclusive como os votos dos outros candidatos se dividiram),
+- **Topo fixo** com o andamento (urnas apuradas), turno (1º/2º), cargo (Presidente/Governador)
+  e o recorte **Brasil, região ou estado**, que filtra a página inteira.
+- **Placar**: no 2º turno, frente a frente; no 1º, os quatro primeiros e os demais agrupados.
+- **Mapa** do Brasil por estado ou, num estado, por cidade: cor de quem lidera (mais forte =
+  vantagem maior) ou % de urnas apuradas. Clique num estado para abrir as cidades dele.
+- **Análises**: resumo automático, regiões, projeção com as urnas que faltam, 1º × 2º turno,
   disputas mais apertadas, maiores vantagens e onde faltam mais votos.
-- Atualização automática a cada 30 s e modo **Simulação** para testar antes de domingo.
+- **Estados** e **Cidades** em tabelas com ordenação e busca.
+- Atualiza sozinho a cada 30 s. Os dados ficam em cache por turno e cargo, e as cidades só são
+  baixadas de novo quando têm urnas novas (o índice `{uf}-e{eleicao}-ab.json` do TSE diz quais mudaram).
+- Modo **Simulação** (no rodapé) para testar sem o TSE.
 
 ## Como rodar
 
@@ -54,9 +51,9 @@ O painel já abre configurado para o 2º turno de Presidente. Códigos do TSE:
 | 1º turno federal (04/10) | `6257` | Presidente |
 | 1º turno estadual (04/10) | `6259` | Governador |
 
-Trocar o cargo entre Presidente e Governador troca o código sozinho. O botão **?** lista as
-eleições publicadas no TSE. A configuração fica salva no navegador e também pode ir pela URL:
-`?fonte=tse&ano=2026&eleicao=6258&cargo=0001`.
+Os botões de turno e cargo escolhem o código sozinhos. A escolha fica salva no navegador e
+também pode ir pela URL, por exemplo `?turno=1&cargo=0003&recorte=MG`. Para outra eleição,
+use `?eleicao=<código>&ano=<ano>`.
 
 ## Arquivos do TSE usados
 
@@ -67,8 +64,15 @@ eleições publicadas no TSE. A configuração fica salva no navegador e também
 | Estado | `.../dados/{uf}/{uf}-c{cargo}-e{eleicao}-u.json` |
 | Cidade | `.../dados/{uf}/{uf}{codmun}-c{cargo}-e{eleicao}-u.json` |
 | Lista de cidades | `/oficial/ele{ano}/{eleicao}/config/mun-e{eleicao}-cm.json` |
+| Andamento de todas as cidades do estado | `.../dados/{uf}/{uf}-e{eleicao}-ab.json` |
 
 `{eleicao}` vai com 6 dígitos nos nomes de arquivo (ex.: `006258`) e `{cargo}` com 4 (`0001` = Presidente,
 `0003` = Governador). Campos: `s.ts` seções, `s.st` seções totalizadas, `e.te` eleitorado, `e.c`
 comparecimento, `e.a` abstenção, `v.vb` brancos, `v.tvn` nulos, `v.vv` válidos e os candidatos em
 `carg[].agr[].par[].cand[]` (`nmu` nome de urna, `vap` votos).
+
+## Mapas
+
+`public/mapas/` tem os contornos já convertidos em SVG: `br.json` (estados) e um arquivo por estado
+com as cidades, ligadas ao resultado pelo código IBGE (`cdi` na lista de cidades do TSE). Foram gerados
+com `scripts/gerar-mapas.js` a partir das malhas municipais do IBGE (pacote npm `ibge-cidades-com-poligonos`).
