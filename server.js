@@ -23,6 +23,12 @@ const MIME = {
 
 const cache = new Map(); // url -> { at, status, body }
 
+// apaga do cache o que já venceu, para a memória não crescer a noite toda
+setInterval(() => {
+  const agora = Date.now();
+  for (const [url, item] of cache) if (agora - item.at >= CACHE_MS) cache.delete(url);
+}, 60_000).unref();
+
 async function proxyTse(req, res, tsePath) {
   if (!/^\/oficial\/[\w\-./]+\.json$/.test(tsePath)) {
     res.writeHead(400).end("caminho inválido");
@@ -37,7 +43,8 @@ async function proxyTse(req, res, tsePath) {
   try {
     const r = await fetch(url, { headers: { accept: "application/json" } });
     const body = Buffer.from(await r.arrayBuffer());
-    cache.set(url, { at: Date.now(), status: r.status, body });
+    // só guarda respostas boas: uma falha momentânea do TSE não deve ser repetida para todos
+    if (r.ok) cache.set(url, { at: Date.now(), status: r.status, body });
     res.writeHead(r.status, { "content-type": MIME[".json"], "x-cache": "miss" }).end(body);
   } catch (err) {
     res.writeHead(502, { "content-type": "text/plain; charset=utf-8" }).end("falha ao acessar o TSE: " + err.message);
@@ -47,7 +54,7 @@ async function proxyTse(req, res, tsePath) {
 function serveStatic(req, res, urlPath) {
   const rel = urlPath === "/" ? "/index.html" : urlPath;
   const file = path.normalize(path.join(PUBLIC_DIR, rel));
-  if (!file.startsWith(PUBLIC_DIR)) {
+  if (file !== PUBLIC_DIR && !file.startsWith(PUBLIC_DIR + path.sep)) {
     res.writeHead(403).end();
     return;
   }
@@ -65,6 +72,17 @@ http
     const { pathname } = new URL(req.url, "http://localhost");
     if (pathname === "/tse/status") return res.writeHead(200, { "content-type": "text/plain" }).end("ok");
     if (pathname.startsWith("/tse/")) return proxyTse(req, res, pathname.slice(4));
-    serveStatic(req, res, decodeURIComponent(pathname));
+    let decodificado;
+    try {
+      decodificado = decodeURIComponent(pathname);
+    } catch {
+      res.writeHead(400).end("endereço inválido");
+      return;
+    }
+    if (decodificado.includes("\0")) {
+      res.writeHead(400).end("endereço inválido");
+      return;
+    }
+    serveStatic(req, res, decodificado);
   })
   .listen(PORT, () => console.log(`Painel em http://localhost:${PORT}`));

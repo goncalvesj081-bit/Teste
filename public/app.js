@@ -1,5 +1,5 @@
-import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=14";
-import { chancePorCidades, PERFIS } from "./modelo.js?v=14";
+import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=15";
+import { chancePorCidades, PERFIS, aleatorio, normal } from "./modelo.js?v=15";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
@@ -140,7 +140,11 @@ function carregarBase(d) {
     ? d.fonte.base1Turno()
     : fetch(`base/${d.cargo === "0001" ? "presidente" : "governador"}-2026-t1.json`).then((r) => (r.ok ? r.json() : null))
   )
-    .then((b) => (d.base = b))
+    .then(async (b) => {
+      d.base = b;
+      // nomes das cidades para a lista de onde a disputa vai ser decidida
+      d.lista = await d.fonte.listaMunicipios().catch(() => null);
+    })
     .catch(() => (d.basePromessa = null));
   return d.basePromessa;
 }
@@ -374,22 +378,15 @@ function projetar(us, d1) {
 
 // ------------------------------------------------------------- chance de virada
 
-// Gerador aleatório com semente, para o número não "pular" entre redesenhos da mesma leitura.
-function aleatorio(semente) {
-  let s = semente >>> 0 || 1;
-  return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
-}
-function normal(rnd) {
-  const u = Math.max(rnd(), 1e-12), v = rnd();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
+// aleatorio e normal vêm de modelo.js (com semente, para o número não "pular" entre redesenhos)
 const limitar = (x) => Math.min(0.98, Math.max(0.02, x));
 
 // guarda as contas já feitas (a mesma leitura é desenhada várias vezes)
 const memoChance = new Map();
 function lembrar(chave, fazer) {
   if (memoChance.has(chave)) return memoChance.get(chave);
-  if (memoChance.size > 40) memoChance.clear();
+  // descarta as mais antigas (o Map guarda a ordem em que entraram)
+  while (memoChance.size >= 200) memoChance.delete(memoChance.keys().next().value);
   const v = fazer();
   memoChance.set(chave, v);
   return v;
@@ -448,7 +445,7 @@ function contaPorCidade(d, r, rec, A, B) {
   let lugares;
   if (ehUF(rec)) {
     const uf = usados[0];
-    const nomes = new Map((d.cidades[uf] || []).map((m) => [m.codigo, m.nome]));
+    const nomes = new Map((d.lista?.[uf] || d.cidades[uf] || []).map((m) => [m.codigo, m.nome]));
     const cods = Object.keys(d.base.ufs[uf]?.cidades || {});
     lugares = (res.porEstado[0]?.cidades || []).map((c, i) => ({ nome: nomes.get(cods[i]) || `Cidade ${cods[i]}`, ...c }));
   } else {
@@ -624,8 +621,8 @@ function registrar(d) {
   if (ant && ant.u.br[0] > d.brasil.apuradas) { h.length = 0; ant = null; } // a contagem recomeçou
   const novo = { t: Date.now(), u: { br: resumir(d.brasil) }, ch: {} };
   for (const [uf, r] of Object.entries(d.estados)) if (r) novo.u[uf] = resumir(r);
-  // chance de vitória de quem lidera: no Brasil (presidente) ou em cada estado (governador)
-  for (const rec of governador() ? Object.keys(d.estados).filter((uf) => d.estados[uf]) : [""]) {
+  // chance de vitória de quem lidera, só no 2º turno: no Brasil (presidente) ou em cada estado (governador)
+  for (const rec of d.turno !== "2" ? [] : governador() ? Object.keys(d.estados).filter((uf) => d.estados[uf]) : [""]) {
     const cv = chanceVirada(d, rec);
     if (cv) novo.ch[rec || "br"] = [cv.A.numero, Math.round((1 - cv.prob) * 1000) / 1000];
   }
@@ -698,27 +695,34 @@ function detectarEventos(d, ant, novo) {
       ev.push({ uf, tipo: "Virada", txt: `Virada em ${UFS[uf][0]}: ${nomeCand(d, n[3], uf)} passou à frente de ${nomeCand(d, n[5], uf)}` });
     }
   }
-  // chance de vitória: ch[lugar] = [número de quem lidera, chance dele]
+  // chance de vitória: ch[lugar] = [número de quem lidera, chance dele]. Avisa uma vez quando o
+  // favorito muda (só com folga, para não repetir se a chance oscila perto de 50%) e uma vez por
+  // candidato quando passa de 90%. A primeira leitura só serve de referência.
+  if (!d.avisados) {
+    d.avisados = {};
+    if (guarda()) try { d.avisados = JSON.parse(localStorage.getItem("av|" + d.chave) || "{}"); } catch {}
+  }
   for (const [k, n] of Object.entries(novo.ch || {})) {
-    const a = ant.ch?.[k];
-    if (!a) continue;
     const uf = k === "br" ? undefined : k;
     const onde = uf ? `em ${UFS[uf][0]}` : "no Brasil";
     const u = novo.u[k];
     const outro = u?.[3] === n[0] ? u?.[5] : u?.[3];
-    // olha os dois: quem lidera nos votos e quem está atrás (o caso da virada)
-    for (const [num, agora] of [[n[0], n[1]], [outro, 1 - n[1]]]) {
-      if (!num) continue;
-      const antes = a[0] === num ? a[1] : 1 - a[1]; // chance que o mesmo candidato tinha antes
-      const nome = nomeCand(d, num, uf);
-      if (antes < 0.5 && agora >= 0.5) {
-        ev.push({ uf, tipo: "Chance de virada", txt: `${nome} passa a ser o favorito ${onde}: ${Math.round(agora * 100)}% de chance de vencer` });
-      }
-      if (antes < 0.9 && agora >= 0.9) {
-        ev.push({ uf, tipo: "Chance de vitória", txt: `${nome} chega a ${Math.round(agora * 100)}% de chance de vencer ${onde}` });
-      }
+    const fav = n[1] >= 0.5 ? n[0] : outro;
+    const chanceFav = Math.max(n[1], 1 - n[1]);
+    if (!fav) continue;
+    const reg = (d.avisados[k] ||= { fav: null, noventa: [] });
+    const primeira = !reg.fav;
+    if (primeira) reg.fav = fav;
+    else if (fav !== reg.fav && chanceFav >= 0.6) {
+      reg.fav = fav;
+      ev.push({ uf, tipo: "Chance de virada", txt: `${nomeCand(d, fav, uf)} passa a ser o favorito ${onde}: ${Math.round(chanceFav * 100)}% de chance de vencer` });
+    }
+    if (chanceFav >= 0.9 && !reg.noventa.includes(fav)) {
+      reg.noventa.push(fav);
+      if (!primeira) ev.push({ uf, tipo: "Chance de vitória", txt: `${nomeCand(d, fav, uf)} chega a ${Math.round(chanceFav * 100)}% de chance de vencer ${onde}` });
     }
   }
+  if (guarda()) try { localStorage.setItem("av|" + d.chave, JSON.stringify(d.avisados)); } catch {}
   return ev.map((e) => ({ ...e, t: novo.t }));
 }
 
@@ -1312,10 +1316,14 @@ function renderLinhaTempo(d) {
     : [];
   elChance.hidden = comChance.length < 2;
   if (elChance.hidden) return;
+  // a leitura guarda a chance de quem liderava; vale para os dois só se ele for um deles
+  const nums = cands.map((c) => c.numero);
+  const usaveis = comChance.filter((o) => nums.includes(o.ch[0]));
+  if (usaveis.length < 2) { elChance.hidden = true; return; }
   const chanceDe = (c, ch) => 100 * (ch[0] === c.numero ? ch[1] : 1 - ch[1]);
   graficoLinhas(
     elChance.querySelector(".grafico"),
-    cands.map((c) => ({ c, pts: comChance.map((o) => ({ x: o.p.x, y: chanceDe(c, o.ch), t: o.p.t })) })),
+    cands.map((c) => ({ c, pts: usaveis.map((o) => ({ x: o.p.x, y: chanceDe(c, o.ch), t: o.p.t })) })),
     { fixo: [0, 100], rotulo: "Chance de vitória ao longo da apuração", casas: inteiro },
   );
 }
@@ -1698,8 +1706,8 @@ async function atualizar({ forcar = false } = {}) {
     await Promise.all(tarefas.map((p) => p.catch(() => {})));
     if (gen === geracao) carregandoAgora = false;
   }
-  const mudou = registrar(d);
   if (gen !== geracao) return;
+  const mudou = registrar(d);
   fixarCores(d);
   if (mudou) anotarEventos(d, detectarEventos(d, mudou.ant, mudou.novo));
   renderAll();
