@@ -113,8 +113,15 @@ function carregarEstados(d) {
       d.fonte.brasil().catch((e) => ((erroBr = e), null)),
       ...ufs.map((uf) => d.fonte.estado(uf).catch(() => null)),
     ]);
-    ufs.forEach((uf, i) => (d.estados[uf] = est[i]));
-    d.brasil = br || (est.some(Boolean) ? aggregate(est) : null);
+    // se o TSE falhar num estado (comum com o site sobrecarregado), fica o último dado bom dele
+    let falhas = 0;
+    ufs.forEach((uf, i) => {
+      if (est[i]) d.estados[uf] = est[i];
+      else if (d.estados[uf]) falhas++;
+      else d.estados[uf] = null;
+    });
+    d.falhas = falhas + (!br && d.brasil ? 1 : 0);
+    d.brasil = br || (d.carregado && d.brasil) || (est.some(Boolean) ? aggregate(est) : null);
     if (usaCidades(d)) await carregarAndamento(d);
     d.carregado = true;
     d.lido = new Date();
@@ -728,7 +735,11 @@ function renderTopo(d) {
   } else if (d.erro) {
     aviso.textContent = d.erro;
   }
-  aviso.hidden = !d.erro;
+  if (!d.erro && d.falhas) {
+    aviso.classList.remove("erro");
+    aviso.textContent = `O site do TSE não respondeu agora para ${d.falhas === 1 ? "um lugar" : `${d.falhas} lugares`}; mostrando o último dado de lá. O painel tenta de novo em 30 segundos.`;
+  }
+  aviso.hidden = !d.erro && !d.falhas;
 
   $("#eyebrow").textContent = cfg.fonte === "replay" ? "Presidente · 2º turno de 2022 (replay)" : `${CARGOS[cfg.cargo]} · ${NOME_TURNO[cfg.turno]}`;
   document.querySelectorAll("#seg-turno button, #seg-cargo button").forEach((b) => (b.disabled = cfg.fonte === "replay"));
