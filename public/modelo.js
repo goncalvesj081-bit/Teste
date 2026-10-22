@@ -19,7 +19,7 @@ export function normal(rnd) {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
-const limitar = (x, a = 0.02, b = 0.98) => Math.min(b, Math.max(a, x));
+const restringir = (x, a = 0.02, b = 0.98) => Math.min(b, Math.max(a, x));
 
 /**
  * Margens de erro dos sorteios, por cargo (calibradas com 2022, ver scripts/testar-chance.mjs).
@@ -64,7 +64,7 @@ export function chancePorCidades({ a, b, estados, paraMudanca = estados, frac, N
       restante1t: rv,
       pResto: rv ? rvp / rv : 0.5,
       // mudança: parcela de A apurada agora menos a que as mesmas cidades deram no 1º turno
-      mudanca: cv > 0 && obs > 0 ? limitar(e.a / obs - cvp / cv, -0.3, 0.3) : null,
+      mudanca: cv > 0 && obs > 0 ? restringir(e.a / obs - cvp / cv, -0.3, 0.3) : null,
       // quanto do eleitorado do 1º turno está votando nos dois agora (comparecimento, brancos, nulos)
       razao: cv > 0 && obs > 0 ? obs / cv : null,
     };
@@ -89,14 +89,14 @@ export function chancePorCidades({ a, b, estados, paraMudanca = estados, frac, N
     const razao = w * (e.razao ?? razaoPais) + (1 - w) * razaoPais;
     const it = {
       resto: e.restante1t * razao,
-      media: limitar(e.pResto + mudanca),
+      media: restringir(e.pResto + mudanca),
       desvio: erro.estado * Math.sqrt(erro.encolheEstado / (erro.encolheEstado + e.apurado)),
     };
     itens.push(it);
     // o mesmo raciocínio, cidade a cidade, para dizer onde estão os votos que decidem
     const cidades = original.cidades.map((c) => {
       const resto = (1 - Math.min(1, Math.max(0, c.f))) * c.v * razao;
-      return { resto, saldo: resto * (2 * limitar(c.p + mudanca) - 1) };
+      return { resto, saldo: resto * (2 * restringir(c.p + mudanca) - 1) };
     });
     return { resto: it.resto, saldo: it.resto * (2 * it.media - 1), cidades };
   });
@@ -111,7 +111,7 @@ export function chancePorCidades({ a, b, estados, paraMudanca = estados, frac, N
   for (let k = 0; k < N; k++) {
     const comum = normal(rnd) * desvioPais;
     let m = a - b;
-    for (const it of itens) m += it.resto * (2 * limitar(it.media + comum + normal(rnd) * it.desvio) - 1);
+    for (const it of itens) m += it.resto * (2 * restringir(it.media + comum + normal(rnd) * it.desvio) - 1);
     margens[k] = m;
     if (m > 0) vitoriasA++;
   }

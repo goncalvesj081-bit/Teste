@@ -1,5 +1,5 @@
-import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=15";
-import { chancePorCidades, PERFIS, aleatorio, normal } from "./modelo.js?v=15";
+import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=17";
+import { chancePorCidades, PERFIS, aleatorio, normal } from "./modelo.js?v=17";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
