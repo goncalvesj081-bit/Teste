@@ -9,6 +9,13 @@ Painel para acompanhar a apuração em tempo real com os dados públicos do TSE
 - **Por estado** — urnas apuradas, % por candidato e quem lidera; filtro por região e ordenação.
   Clique num estado para abrir as cidades dele.
 - **Por cidade** — todas as cidades do estado, com busca, % de urnas apuradas e votos.
+- **Ver resultado de** — filtra o painel inteiro por Brasil, região ou estado. Num estado,
+  as análises passam a ser por cidade.
+- **Turno** — 1º turno (04/10) ou 2º turno (25/10), para Presidente ou Governador.
+- **Análises** — resumo automático (quem lidera, diferença, quantos votos faltam e quanto o
+  2º colocado precisaria para virar), projeção simples com as urnas que faltam, comparação
+  1º × 2º turno por estado (inclusive como os votos dos outros candidatos se dividiram),
+  disputas mais apertadas, maiores vantagens e onde faltam mais votos.
 - Atualização automática a cada 30 s e modo **Simulação** para testar antes de domingo.
 
 ## Como rodar

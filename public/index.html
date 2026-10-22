@@ -14,45 +14,90 @@
     </div>
     <form id="config" class="config">
       <label>Fonte
-        <select name="fonte">
+        <select name="fonte" id="cfg-fonte">
           <option value="tse">TSE (ao vivo)</option>
           <option value="demo">Simulação</option>
         </select>
       </label>
-      <label class="tse-only">Ano <input name="ano" size="4" inputmode="numeric"></label>
-      <label class="tse-only">Cód. eleição
-        <span class="inline"><input name="eleicao" size="5" inputmode="numeric" placeholder="ex.: 6258">
-        <button type="button" id="descobrir" title="Procurar o código no TSE">?</button></span>
+      <label>Turno
+        <select name="turno" id="cfg-turno">
+          <option value="2">2º turno (25/10)</option>
+          <option value="1">1º turno (04/10)</option>
+          <option value="outro" class="tse-only">Outro código…</option>
+        </select>
       </label>
       <label>Cargo
-        <select name="cargo">
+        <select name="cargo" id="cfg-cargo">
           <option value="0001">Presidente</option>
           <option value="0003">Governador</option>
         </select>
       </label>
-      <label class="check"><input type="checkbox" name="auto" checked> Atualizar a cada 30s</label>
+      <label class="tse-only outro-only">Ano <input name="ano" id="cfg-ano" size="4" inputmode="numeric"></label>
+      <label class="tse-only outro-only">Cód. eleição
+        <span class="inline"><input name="eleicao" id="cfg-eleicao" size="5" inputmode="numeric" placeholder="ex.: 6258">
+        <button type="button" id="descobrir" title="Procurar o código no TSE">?</button></span>
+      </label>
+      <label class="check"><input type="checkbox" name="auto" id="cfg-auto" checked> Atualizar a cada 30s</label>
       <button type="submit">Atualizar agora</button>
     </form>
   </header>
 
   <main>
+    <section class="recorte">
+      <label for="recorte">Ver resultado de</label>
+      <select id="recorte"></select>
+      <span class="muted" id="recorte-info"></span>
+    </section>
+
     <section class="kpis" id="kpis" aria-live="polite"></section>
 
     <section class="card">
       <div class="card-head">
-        <h2>Brasil</h2>
+        <h2 id="titulo-recorte">Brasil</h2>
         <div class="legend" id="legend"></div>
       </div>
       <div id="brasil-bars"></div>
     </section>
 
     <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="regioes" aria-selected="true">Por região</button>
+      <button role="tab" data-tab="analises" aria-selected="true">Análises</button>
+      <button role="tab" data-tab="regioes" aria-selected="false">Por região</button>
       <button role="tab" data-tab="estados" aria-selected="false">Por estado</button>
       <button role="tab" data-tab="cidades" aria-selected="false">Por cidade</button>
     </nav>
 
-    <section class="card tab-panel" id="tab-regioes">
+    <section class="tab-panel analises" id="tab-analises">
+      <div class="card">
+        <h2>Resumo</h2>
+        <ul class="insights" id="resumo"></ul>
+      </div>
+      <div class="card" id="bloco-projecao">
+        <div class="card-head"><h2>Projeção com as urnas que faltam</h2></div>
+        <p class="muted" id="projecao-nota"></p>
+        <div id="projecao"></div>
+      </div>
+      <div class="card" id="bloco-comparacao" hidden>
+        <div class="card-head"><h2>1º turno × 2º turno</h2></div>
+        <p class="muted" id="comparacao-nota"></p>
+        <div class="table-wrap"><table id="tabela-comparacao"></table></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2 id="titulo-apertadas">Disputas mais apertadas</h2>
+          <ol class="ranking" id="apertadas"></ol>
+        </div>
+        <div class="card">
+          <h2 id="titulo-folgadas">Maiores vantagens</h2>
+          <ol class="ranking" id="folgadas"></ol>
+        </div>
+      </div>
+      <div class="card" id="bloco-faltam">
+        <h2 id="titulo-faltam">Onde faltam mais votos</h2>
+        <ol class="ranking" id="faltam"></ol>
+      </div>
+    </section>
+
+    <section class="card tab-panel" id="tab-regioes" hidden>
       <div class="grid-regioes" id="regioes"></div>
     </section>
 
@@ -63,7 +108,7 @@
         </label>
         <label>Ordenar por
           <select id="ordem-estados">
-            <option value="eleitores">Eleitorado</option>
+            <option value="eleitorado">Eleitorado</option>
             <option value="apuradas">% urnas apuradas</option>
             <option value="nome">Nome</option>
             <option value="lider">Vantagem do 1º</option>
@@ -79,9 +124,10 @@
         <label>Buscar cidade <input id="busca-cidade" type="search" placeholder="Nome da cidade"></label>
         <label>Ordenar por
           <select id="ordem-cidades">
-            <option value="eleitores">Eleitorado</option>
+            <option value="eleitorado">Eleitorado</option>
             <option value="apuradas">% urnas apuradas</option>
             <option value="nome">Nome</option>
+            <option value="lider">Vantagem do 1º</option>
           </select>
         </label>
       </div>

@@ -1,8 +1,11 @@
 // Camada de dados: lê os JSON públicos do TSE (resultados.tse.jus.br) ou gera
 // uma simulação, e devolve tudo num formato único:
 //
-//   { secoes, apuradas, eleitores, comparecimento, abstencao, brancos, nulos,
+//   { secoes, apuradas, eleitorado, eleitores, comparecimento, abstencao, brancos, nulos,
 //     validos, atualizadoEm, candidatos: [{ numero, nome, partido, votos, situacao }] }
+//
+// eleitorado = total de eleitores aptos; eleitores = aptos nas seções já apuradas
+// (é a base do comparecimento e da abstenção).
 
 export const UFS = {
   AC: ["Acre", "Norte"], AM: ["Amazonas", "Norte"], AP: ["Amapá", "Norte"], PA: ["Pará", "Norte"],
@@ -24,7 +27,7 @@ export const CARGOS = { "0001": "Presidente", "0003": "Governador" };
 const int = (v) => Number.parseInt(String(v ?? "0").replace(/\D/g, ""), 10) || 0;
 
 export function emptyResult() {
-  return { secoes: 0, apuradas: 0, eleitores: 0, comparecimento: 0, abstencao: 0, brancos: 0, nulos: 0, validos: 0, atualizadoEm: "", candidatos: [] };
+  return { secoes: 0, apuradas: 0, eleitorado: 0, eleitores: 0, comparecimento: 0, abstencao: 0, brancos: 0, nulos: 0, validos: 0, atualizadoEm: "", candidatos: [] };
 }
 
 /** Soma vários resultados (usado para regiões e, se faltar o arquivo BR, para o país). */
@@ -33,7 +36,7 @@ export function aggregate(results) {
   const cands = new Map();
   for (const r of results) {
     if (!r) continue;
-    for (const k of ["secoes", "apuradas", "eleitores", "comparecimento", "abstencao", "brancos", "nulos", "validos"]) out[k] += r[k];
+    for (const k of ["secoes", "apuradas", "eleitorado", "eleitores", "comparecimento", "abstencao", "brancos", "nulos", "validos"]) out[k] += r[k];
     if (r.atualizadoEm > out.atualizadoEm) out.atualizadoEm = r.atualizadoEm;
     for (const c of r.candidatos) {
       const acc = cands.get(c.numero) || { ...c, votos: 0 };
@@ -70,7 +73,8 @@ function parseTse(j) {
   return {
     secoes: int(s.ts),
     apuradas: int(s.st),
-    eleitores: int(e.te),
+    eleitorado: int(e.te),
+    eleitores: int(e.est ?? e.te),
     comparecimento: int(e.c),
     abstencao: int(e.a),
     brancos: int(v.vb),
@@ -188,11 +192,17 @@ const CAPITAIS = {
 const DEMO_CANDS = [
   { numero: "10", nome: "CANDIDATO A", partido: "PARTIDO A" },
   { numero: "20", nome: "CANDIDATO B", partido: "PARTIDO B" },
+  { numero: "30", nome: "CANDIDATO C", partido: "PARTIDO C" },
+  { numero: "40", nome: "CANDIDATO D", partido: "PARTIDO D" },
 ];
 
-/** Simulação: a apuração avança sozinha (~100% em 6 min) para testar o painel antes de domingo. */
+/**
+ * Simulação: no 2º turno a apuração avança sozinha (~100% em 6 min), para testar o painel
+ * antes de domingo; o 1º turno já vem encerrado, com quatro candidatos.
+ */
 export class DemoSource {
-  constructor() {
+  constructor(turno = "2") {
+    this.turno = turno;
     this.inicio = Date.now() - 90_000; // começa com parte das urnas já apuradas
     this.municipiosCache = null;
   }
@@ -202,24 +212,30 @@ export class DemoSource {
     const atraso = r() * 0.25; // algumas regiões começam a apurar depois
     const ritmo = 0.7 + r() * 0.6;
     const t = (Date.now() - this.inicio) / 360_000; // 0..1 em 6 minutos
-    const frac = Math.max(0, Math.min(1, (t - atraso) * ritmo * 1.4));
+    const frac = this.turno === "1" ? 1 : Math.max(0, Math.min(1, (t - atraso) * ritmo * 1.4));
     const secoes = Math.max(1, Math.round(eleitores / 330));
     const apuradas = Math.round(secoes * frac);
     const e = Math.round(eleitores * (apuradas / secoes));
-    const comparecimento = Math.round(e * (0.76 + r() * 0.08));
+    const comparecimento = Math.round(e * (0.76 + r() * 0.08) * (this.turno === "1" ? 1.02 : 1));
     const brancos = Math.round(comparecimento * (0.01 + r() * 0.02));
     const nulos = Math.round(comparecimento * (0.02 + r() * 0.03));
     const validos = comparecimento - brancos - nulos;
     const shareA = Math.max(0.15, Math.min(0.85, 0.5 + lean + (r() - 0.5) * 0.12));
     const a = Math.round(validos * shareA);
     const d = new Date();
+    let votos = [a, validos - a];
+    if (this.turno === "1") {
+      // no 1º turno os dois finalistas têm menos votos e C e D dividem o resto
+      const fa = Math.round(a * (0.84 + r() * 0.06));
+      const fb = Math.round((validos - a) * (0.82 + r() * 0.06));
+      const c = Math.round((validos - fa - fb) * (0.55 + r() * 0.2));
+      votos = [fa, fb, c, validos - fa - fb - c];
+    }
     return {
-      secoes, apuradas, eleitores: e, comparecimento, abstencao: e - comparecimento, brancos, nulos, validos,
+      secoes, apuradas, eleitorado: Math.round(eleitores), eleitores: e, comparecimento,
+      abstencao: e - comparecimento, brancos, nulos, validos,
       atualizadoEm: `${d.toISOString().slice(0, 10)} ${d.toTimeString().slice(0, 8)}`,
-      candidatos: [
-        { ...DEMO_CANDS[0], votos: a, situacao: "" },
-        { ...DEMO_CANDS[1], votos: validos - a, situacao: "" },
-      ].sort((x, y) => y.votos - x.votos),
+      candidatos: votos.map((v, i) => ({ ...DEMO_CANDS[i], votos: v, situacao: "" })).sort((x, y) => y.votos - x.votos),
     };
   }
 
