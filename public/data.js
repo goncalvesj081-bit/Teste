@@ -291,3 +291,77 @@ export class DemoSource {
     return aggregate(await Promise.all(Object.keys(UFS).map((uf) => this.estado(uf))));
   }
 }
+
+// ---------------------------------------------------------------- replay de 2022
+
+const ORDEM_2022 = { Sul: 0, Sudeste: 0.04, "Centro-Oeste": 0.06, Norte: 0.16, Nordeste: 0.2, Exterior: 0.3 };
+const NOMES_REPLAY = { 13: ["LULA", "PT"], 22: ["JAIR BOLSONARO", "PL"] };
+
+/**
+ * Reapura o 2º turno de 2022 (resultado real, ritmo simulado): Sul e Sudeste contam primeiro,
+ * Norte e Nordeste depois, como aconteceu. Serve para ver a virada e testar a chance de virada.
+ */
+export class ReplaySource {
+  constructor({ duracaoMs = 8 * 60_000, municipios } = {}) {
+    this.inicio = Date.now() - 20_000;
+    this.duracao = duracaoMs;
+    this.municipiosDe = municipios; // lista de cidades do TSE (com código IBGE), para o mapa
+    this.base = fetch("dados2022/0001-t2.json").then((r) => r.json());
+    this.cidadesUf = {};
+  }
+
+  /** Fração apurada de um lugar agora: cada região começa num momento e anda num ritmo. */
+  frac(chave, atrasoBase) {
+    const r = rng("replay" + chave);
+    const t = (Date.now() - this.inicio) / this.duracao;
+    const atraso = atrasoBase + r() * 0.08;
+    const ritmo = 1.25 + r() * 0.5;
+    return Math.max(0, Math.min(1, (t - atraso) * ritmo));
+  }
+
+  parcial(R, frac, chave) {
+    const [aptos, comp, brancos, nulos, validos, votos] = R;
+    const secoes = Math.max(1, Math.round(aptos / 330));
+    const apuradas = Math.round(secoes * frac);
+    const f = apuradas / secoes;
+    // as primeiras urnas de um lugar não têm exatamente o resultado final dele
+    const desvio = (rng("desvio" + chave)() - 0.5) * 0.06 * (1 - f);
+    const v13 = votos["13"] || 0, v22 = votos["22"] || 0;
+    const s13 = Math.max(0, Math.min(1, v13 / (v13 + v22 || 1) + desvio));
+    const val = Math.round(validos * f);
+    const a = Math.round(val * s13);
+    const d = new Date();
+    return {
+      secoes, apuradas, eleitorado: aptos, eleitores: Math.round(aptos * f), comparecimento: Math.round(comp * f),
+      abstencao: Math.round((aptos - comp) * f), brancos: Math.round(brancos * f), nulos: Math.round(nulos * f), validos: val,
+      atualizadoEm: `${d.toISOString().slice(0, 10)} ${d.toTimeString().slice(0, 8)}`,
+      candidatos: [
+        { numero: "13", nome: NOMES_REPLAY[13][0], partido: NOMES_REPLAY[13][1], votos: a, situacao: "" },
+        { numero: "22", nome: NOMES_REPLAY[22][0], partido: NOMES_REPLAY[22][1], votos: val - a, situacao: "" },
+      ].sort((x, y) => y.votos - x.votos),
+    };
+  }
+
+  async estado(uf) {
+    const j = await this.base;
+    if (!j.estados[uf]) throw new Error("sem dados");
+    return this.parcial(j.estados[uf], this.frac(uf, ORDEM_2022[UFS[uf][1]]), uf);
+  }
+
+  async brasil() {
+    const rs = await Promise.all(Object.keys(UFS).map((uf) => this.estado(uf).catch(() => null)));
+    return aggregate(rs);
+  }
+
+  async listaMunicipios() {
+    return this.municipiosDe ? this.municipiosDe() : {};
+  }
+
+  async municipio(uf, codigo) {
+    if (!this.cidadesUf[uf]) this.cidadesUf[uf] = fetch(`dados2022/0001-t2-${uf.toLowerCase()}.json`).then((r) => r.json());
+    const R = (await this.cidadesUf[uf]).cidades[codigo];
+    if (!R) throw new Error("sem dados");
+    // a cidade anda junto com o estado, com um pouco de variação
+    return this.parcial(R, this.frac(uf + codigo, ORDEM_2022[UFS[uf][1]]), uf + codigo);
+  }
+}

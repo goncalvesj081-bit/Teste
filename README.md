@@ -8,12 +8,23 @@ Painel para acompanhar a apuração em tempo real com os dados públicos do TSE
 - **Placar**: no 2º turno, frente a frente; no 1º, os quatro primeiros e os demais agrupados.
 - **Mapa** do Brasil por estado ou, num estado, por cidade: cor de quem lidera (mais forte =
   vantagem maior) ou % de urnas apuradas. Clique num estado para abrir as cidades dele.
-- **Análises**: resumo automático, regiões, projeção com as urnas que faltam, 1º × 2º turno,
-  disputas mais apertadas, maiores vantagens e onde faltam mais votos.
+- **Chance de virada**: estima, pelo que falta apurar em cada estado (ou cidade), a chance de o
+  2º colocado passar o 1º e a faixa da margem final. Nos lugares com pouco apurado, usa também o
+  resultado de 2022 do lugar, corrigido pela mudança já vista no país. Milhares de sorteios com
+  margem de erro que encolhe com a apuração. Estimativa simples, não é previsão oficial.
+- **Linha do tempo** (% dos válidos × % de urnas apuradas), **ritmo** (seções por minuto e hora
+  estimada para 100%) e **avisos** de virada, marcos de apuração e estados que terminaram. As
+  leituras ficam guardadas no navegador enquanto o painel está aberto.
+- **Análises**: resumo automático, regiões, projeção com as urnas que faltam, comparação com o
+  1º turno de 2026 ou com o mesmo turno de 2022 (mapas lado a lado, viradas e tabela), disputas mais
+  apertadas, maiores vantagens e onde faltam mais votos.
+- **Compartilhar**: link que abre no mesmo turno, cargo, recorte, modo do mapa e aba.
 - **Estados** e **Cidades** em tabelas com ordenação e busca.
 - Atualiza sozinho a cada 30 s. Os dados ficam em cache por turno e cargo, e as cidades só são
   baixadas de novo quando têm urnas novas (o índice `{uf}-e{eleicao}-ab.json` do TSE diz quais mudaram).
-- Modo **Simulação** (no rodapé) para testar sem o TSE.
+- No rodapé, **Simulação** (dados fictícios) e **Replay do 2º turno de 2022** (resultado real com
+  ritmo simulado: Sul e Sudeste contam primeiro, Norte e Nordeste depois). No replay dá para ver a
+  virada de 2022 e a chance de virada subindo antes dela; `?duracao=90` acelera (segundos).
 
 ## Como rodar
 
@@ -76,3 +87,10 @@ comparecimento, `e.a` abstenção, `v.vb` brancos, `v.tvn` nulos, `v.vv` válido
 `public/mapas/` tem os contornos já convertidos em SVG: `br.json` (estados) e um arquivo por estado
 com as cidades, ligadas ao resultado pelo código IBGE (`cdi` na lista de cidades do TSE). Foram gerados
 com `scripts/gerar-mapas.js` a partir das malhas municipais do IBGE (pacote npm `ibge-cidades-com-poligonos`).
+
+## Dados de 2022
+
+`public/dados2022/` tem o resultado de 2022 de presidente e governador (1º e 2º turno), por estado e
+por cidade, gerado com `scripts/gerar-2022.py` a partir do portal de dados abertos do TSE
+(`votacao_partido_munzona_2022.zip` e `detalhe_votacao_munzona_2022.zip`). Como nesses cargos cada
+partido tem um só candidato, a comparação com 2026 é feita pelo número do partido.

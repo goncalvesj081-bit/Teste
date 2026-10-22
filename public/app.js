@@ -1,4 +1,4 @@
-import { UFS, REGIOES, CARGOS, TseSource, DemoSource, aggregate } from "./data.js?v=8";
+import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=10";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
@@ -30,7 +30,9 @@ function loadConfig() {
   for (const k of ["fonte", "turno", "cargo", "recorte"]) if (params.has(k)) c[k] = params.get(k);
   if (!["1", "2"].includes(c.turno)) c.turno = "2";
   if (!CARGOS[c.cargo]) c.cargo = "0001";
-  if (!["tse", "demo"].includes(c.fonte)) c.fonte = "tse";
+  if (!["tse", "demo", "replay"].includes(c.fonte)) c.fonte = "tse";
+  // o replay é o 2º turno de presidente de 2022
+  if (c.fonte === "replay") { c.turno = "2"; c.cargo = "0001"; }
   if (c.recorte && !UFS[c.recorte] && !REGIOES.includes(c.recorte.slice(2))) c.recorte = "";
   return c;
 }
@@ -60,15 +62,29 @@ async function detectarProxy() {
 
 const cache = new Map();
 
+// lista de cidades do TSE (com código IBGE) para o replay de 2022 desenhar o mapa das cidades
+let listaTse = null;
+const municipiosTse = () =>
+  (listaTse ||= new TseSource({ base: TSE_BASE, ano: ANO, eleicao: TURNOS[2]["0001"], cargo: "0001" }).listaMunicipios().catch(() => ((listaTse = null), {})));
+
+function novaFonte(fonte, turno, codigo, cargo) {
+  if (fonte === "demo") return new DemoSource(turno);
+  if (fonte === "replay") {
+    const seg = Number(params.get("duracao")); // ?duracao=90 acelera o replay (segundos)
+    return new ReplaySource({ municipios: municipiosTse, ...(seg > 0 ? { duracaoMs: seg * 1000 } : {}) });
+  }
+  return new TseSource({ base: TSE_BASE, ano: ANO, eleicao: codigo, cargo });
+}
+
 function conjunto(fonte, turno, cargo) {
-  const codigo = turno === cfg.turno && ELEICAO_URL ? ELEICAO_URL : TURNOS[turno][cargo];
+  const codigo = fonte === "replay" ? "replay2022" : turno === cfg.turno && ELEICAO_URL ? ELEICAO_URL : TURNOS[turno][cargo];
   const chave = `${fonte}|${codigo}|${cargo}`;
   if (!cache.has(chave)) {
     cache.set(chave, {
       chave,
       turno,
       cargo,
-      fonte: fonte === "demo" ? new DemoSource(turno) : new TseSource({ base: TSE_BASE, ano: ANO, eleicao: codigo, cargo }),
+      fonte: novaFonte(fonte, turno, codigo, cargo),
       brasil: null,
       estados: {},
       cidades: {},
@@ -83,7 +99,7 @@ function conjunto(fonte, turno, cargo) {
 }
 
 const atual = () => conjunto(cfg.fonte, cfg.turno, cfg.cargo);
-const primeiroTurno = () => (cfg.turno === "2" ? conjunto(cfg.fonte, "1", cfg.cargo) : null);
+const primeiroTurno = () => (cfg.turno === "2" && cfg.fonte !== "replay" ? conjunto(cfg.fonte, "1", cfg.cargo) : null);
 const completo = (r) => !!r && r.secoes > 0 && r.apuradas === r.secoes;
 const governador = () => cfg.cargo === "0003";
 
@@ -147,6 +163,75 @@ function carregarCidades(d, uf, ativo) {
   })().finally(() => delete d.cidadesEmCurso[uf]);
   return d.cidadesEmCurso[uf];
 }
+
+// ------------------------------------------------------------- 2022 (arquivos em dados2022/)
+
+// Os arquivos de 2022 têm votos por partido (cada partido tem um só candidato nesses cargos);
+// a comparação com 2026 é feita pelo número do partido.
+const NOMES_2022 = {
+  "0001": { 13: "LULA", 22: "JAIR BOLSONARO", 15: "SIMONE TEBET", 12: "CIRO GOMES", 44: "SORAYA THRONICKE", 30: "FELIPE D'AVILA",
+    14: "PADRE KELMON", 21: "SOFIA MANZANO", 16: "VERA", 27: "CONSTITUINTE EYMAEL", 80: "LÉO PÉRICLES" },
+};
+const cache2022 = new Map();
+
+function de2022(R, d22) {
+  const [aptos, comp, brancos, nulos, validos, votos] = R;
+  const nomes = NOMES_2022[d22.cargo] || {};
+  return {
+    secoes: 1, apuradas: 1, eleitorado: aptos, eleitores: aptos, comparecimento: comp, abstencao: aptos - comp,
+    brancos, nulos, validos, atualizadoEm: "",
+    candidatos: Object.entries(votos)
+      .map(([n, v]) => ({ numero: n, nome: nomes[n] || d22.siglas[n] || n, partido: d22.siglas[n] || "", votos: v, situacao: "" }))
+      .sort((a, b) => b.votos - a.votos),
+  };
+}
+
+function conjunto2022(turno, cargo) {
+  const chave = `${turno}|${cargo}`;
+  if (!cache2022.has(chave)) {
+    const d22 = { chave: "2022|" + chave, turno, cargo, brasil: null, estados: {}, cidades: {}, siglas: {}, carregado: false, cidadesEmCurso: {} };
+    d22.pronto = fetch(`dados2022/${cargo}-t${turno}.json`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+      .then((j) => {
+        d22.siglas = j.siglas;
+        d22.brasil = de2022(j.br, d22);
+        for (const [uf, R] of Object.entries(j.estados)) d22.estados[uf] = de2022(R, d22);
+      })
+      .catch(() => {})
+      .finally(() => (d22.carregado = true));
+    cache2022.set(chave, d22);
+  }
+  return cache2022.get(chave);
+}
+
+/** Cidades de 2022 de um estado, na mesma lista (código, nome, código IBGE) usada hoje. */
+function cidades2022(d22, uf, lista) {
+  if (d22.cidades[uf]) return Promise.resolve();
+  if (!d22.cidadesEmCurso[uf]) {
+    d22.cidadesEmCurso[uf] = fetch(`dados2022/${d22.cargo}-t${d22.turno}-${uf.toLowerCase()}.json`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+      .then((j) => (d22.cidades[uf] = lista.map((m) => ({ ...m, r: j.cidades[m.codigo] ? de2022(j.cidades[m.codigo], d22) : null }))))
+      .catch(() => (d22.cidades[uf] = []))
+      .finally(() => delete d22.cidadesEmCurso[uf]);
+  }
+  return d22.cidadesEmCurso[uf];
+}
+
+// com o que comparar: 1º turno de 2026 (só no 2º turno) ou o mesmo turno de 2022
+let escolhaBase = null;
+function baseComparacao() {
+  // no replay a "apuração" já é de 2022: não há com o que comparar
+  const opcoes = cfg.fonte === "replay" ? [] : cfg.turno === "2" ? ["t1", "2022"] : ["2022"];
+  const tipo = opcoes.includes(escolhaBase) ? escolhaBase : opcoes[0];
+  return {
+    tipo,
+    opcoes,
+    d: !tipo ? null : tipo === "t1" ? primeiroTurno() : conjunto2022(cfg.turno, cfg.cargo),
+    rotulo: tipo === "t1" ? "1º turno de 2026" : `${NOME_TURNO[cfg.turno]} de 2022`,
+    curto: tipo === "t1" ? "1º turno · 04/10" : `${NOME_TURNO[cfg.turno]} · 2022`,
+  };
+}
+const ROTULO_OPCAO = { t1: "1º turno 2026", "2022": () => `${NOME_TURNO[cfg.turno]} 2022` };
 
 // ------------------------------------------------------------- recorte
 
@@ -254,6 +339,124 @@ function projetar(us, d1) {
   };
 }
 
+// ------------------------------------------------------------- chance de virada
+
+// Gerador aleatório com semente, para o número não "pular" entre redesenhos da mesma leitura.
+function aleatorio(semente) {
+  let s = semente >>> 0 || 1;
+  return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+}
+function normal(rnd) {
+  const u = Math.max(rnd(), 1e-12), v = rnd();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+const limitar = (x) => Math.min(0.98, Math.max(0.02, x));
+
+let memoVirada = { chave: "", valor: null };
+
+/**
+ * Chance de o 2º colocado ainda passar o 1º. Para cada estado (ou cidade, num estado) estima
+ * quantos votos faltam e como eles devem se dividir: o que já foi apurado ali, misturado, quando
+ * se apurou pouco, com o resultado do mesmo lugar em 2022 corrigido pela mudança já vista no país.
+ * Depois sorteia milhares de finais com uma margem de erro (comum a todos e própria de cada lugar)
+ * que encolhe conforme a apuração avança. Estimativa simples, não é previsão oficial.
+ */
+function chanceVirada(d) {
+  const r = resultadoRecorte(d);
+  if (!r?.apuradas || completo(r) || !mostraCandidatos() || r.candidatos.length < 2) return null;
+  const us = unidades(d);
+  if (!us?.length) return null;
+  const chave = `${d.chave}|${cfg.recorte}|${r.apuradas}|${us.length}|${us.reduce((t, u) => t + u.r.apuradas, 0)}`;
+  if (memoVirada.chave === chave) return memoVirada.valor;
+
+  const [A, B] = r.candidatos;
+  const d1 = primeiroTurno();
+  const d22 = conjunto2022(cfg.turno, cfg.cargo);
+  // disputa entre os dois: parcela de A entre A+B e quanto dos válidos vai para os dois
+  const dois = (x) => {
+    const a = votosDe(x, A.numero), b = votosDe(x, B.numero);
+    return a + b ? { s: a / (a + b), f: (a + b) / (x.validos || a + b), peso: a + b } : null;
+  };
+  const antes = (u) => (u.cidade || cfg.fonte === "replay" ? null : d22.estados?.[u.id] ? dois(d22.estados[u.id]) : null);
+
+  // mudança em relação a 2022 nos lugares que já têm votos, ponderada pelos votos apurados
+  let num = 0, den = 0;
+  for (const u of us) {
+    const c = dois(u.r), p = antes(u);
+    if (c && p) { num += (c.s - p.s) * c.peso; den += c.peso; }
+  }
+  const mudanca = den ? num / den : 0;
+  const geral = dois(r);
+
+  let restoTotal = 0;
+  const itens = [];
+  for (const u of us) {
+    const resto = restanteEstimado(u.r, u.cidade ? null : d1?.estados[u.id] || (cfg.fonte !== "replay" ? d22.estados?.[u.id] : null));
+    if (resto <= 0) continue;
+    restoTotal += resto;
+    const frac = u.r.apuradas / u.r.secoes;
+    const c = dois(u.r), p = antes(u);
+    const previsto = p ? limitar(p.s + mudanca) : geral ? geral.s : 0.5;
+    itens.push({
+      resto: resto * (c ? c.f : geral ? geral.f : 1),
+      media: c ? frac * c.s + (1 - frac) * previsto : previsto,
+      erro: 0.04 * (1 - frac) + 0.005,
+    });
+  }
+  const erroComum = 0.02 * (1 - r.apuradas / r.secoes) + 0.002;
+  const rnd = aleatorio(r.apuradas * 31 + itens.length);
+  const N = 3000;
+  const margens = new Float64Array(N);
+  let viradas = 0;
+  for (let k = 0; k < N; k++) {
+    const comum = normal(rnd) * erroComum;
+    let a = A.votos, b = B.votos;
+    for (const it of itens) {
+      const s1 = limitar(it.media + comum + normal(rnd) * it.erro);
+      a += it.resto * s1;
+      b += it.resto * (1 - s1);
+    }
+    margens[k] = a - b;
+    if (b > a) viradas++;
+  }
+  margens.sort();
+  const validosFinal = r.validos + restoTotal;
+  const valor = {
+    prob: viradas / N,
+    A, B,
+    media: pct(margens[N >> 1], validosFinal),
+    baixo: pct(margens[Math.floor(N * 0.1)], validosFinal),
+    alto: pct(margens[Math.floor(N * 0.9)], validosFinal),
+  };
+  memoVirada = { chave, valor };
+  return valor;
+}
+
+function rotuloChance(p) {
+  if (p < 0.02) return "praticamente impossível";
+  if (p < 0.1) return "muito improvável";
+  if (p < 0.3) return "improvável";
+  if (p < 0.5) return "possível";
+  if (p < 0.7) return "provável";
+  return "muito provável";
+}
+
+const ppSinal = (x) => `${x >= 0 ? "+" : "−"}${ppFmt.format(Math.abs(x))}`;
+
+function htmlChance(cv) {
+  const p = Math.round(cv.prob * 100);
+  const txtP = cv.prob < 0.01 ? "menos de 1%" : cv.prob > 0.99 ? "mais de 99%" : `${p}%`;
+  return `<div class="chance">
+      <div class="chance-topo">
+        <span>Chance de ${sw(cv.B)} <b>${esc(cv.B.nome)}</b> virar</span>
+        <span class="chance-num">${txtP}</span>
+      </div>
+      <div class="chance-barra" role="img" aria-label="Chance de virada de ${txtP}"><i style="width:${Math.max(1, p)}%;background:${cor(cv.B.numero)}"></i></div>
+      <div class="chance-sub"><span>${rotuloChance(cv.prob)}</span>
+        <span>margem final estimada de ${esc(nomeCurto(cv.A))}: ${ppSinal(cv.baixo)} a ${ppSinal(cv.alto)} p.p.</span></div>
+    </div>`;
+}
+
 // ------------------------------------------------------------- tooltip
 
 const tip = $("#tooltip");
@@ -290,7 +493,7 @@ const resumir = (r) => {
   return [r.apuradas, r.secoes, r.validos, a?.numero || "", a?.votos || 0, b?.numero || "", b?.votos || 0];
 };
 // a simulação recomeça a cada carregamento da página, então o histórico dela não é guardado
-const guarda = () => cfg.fonte !== "demo";
+const guarda = () => cfg.fonte === "tse";
 
 function historico(d) {
   if (!d.hist) {
@@ -428,6 +631,7 @@ function renderTopo(d) {
     else { estado = "aovivo"; txt = "Ao vivo"; }
   } else if (d.carregado) { estado = "aguardando"; txt = "Sem resultados publicados"; }
   if (cfg.fonte === "demo") txt += " · simulação";
+  if (cfg.fonte === "replay") txt += " · replay de 2022";
   status.dataset.estado = estado;
   $("#status-txt").textContent = txt;
 
@@ -454,7 +658,8 @@ function renderTopo(d) {
   }
   aviso.hidden = !d.erro;
 
-  $("#eyebrow").textContent = `${CARGOS[cfg.cargo]} · ${NOME_TURNO[cfg.turno]}`;
+  $("#eyebrow").textContent = cfg.fonte === "replay" ? "Presidente · 2º turno de 2022 (replay)" : `${CARGOS[cfg.cargo]} · ${NOME_TURNO[cfg.turno]}`;
+  document.querySelectorAll("#seg-turno button, #seg-cargo button").forEach((b) => (b.disabled = cfg.fonte === "replay"));
   $("#titulo-recorte").textContent = nomeRecorte(cfg.recorte);
   $("#voltar").hidden = !cfg.recorte;
 }
@@ -483,8 +688,10 @@ function renderPlacar(d) {
   const principais = r.candidatos.slice(0, 4);
   const outros = r.candidatos.slice(4);
   const somaOutros = outros.reduce((s, c) => s + c.votos, 0);
+  const cv = chanceVirada(d);
   el.innerHTML =
     `<div class="lista-cand">${principais.map((c) => linha(c, false)).join("")}</div>` +
+    (cv ? htmlChance(cv) : "") +
     (outros.length
       ? `<details class="outros"><summary>Outros ${outros.length} candidatos · ${pctStr(somaOutros, r.validos)} dos válidos</summary>
          <div class="lista-cand">${outros.map((c) => linha(c, true)).join("")}</div></details>`
@@ -513,7 +720,7 @@ function renderDuelo(r, el) {
       <span class="meio"></span>
     </div>
     <div class="split-legenda"><span>50%</span></div>
-    ${dif}`;
+    ${dif}${(() => { const cv = chanceVirada(atual()); return cv ? htmlChance(cv) : ""; })()}`;
   bindTip(el.querySelector(".split"), r, nomeRecorte(cfg.recorte));
 }
 
@@ -721,6 +928,15 @@ function renderResumo(d, d1) {
           : `Ninguém passou de 50% dos válidos: ${esc(a.nome)} e ${esc(b.nome)} ${fim ? "foram" : "estão indo"} para o 2º turno.`,
       );
     }
+    const cv = !fim && chanceVirada(d);
+    if (cv) {
+      const p = cv.prob < 0.01 ? "menos de 1%" : cv.prob > 0.99 ? "mais de 99%" : `${Math.round(cv.prob * 100)}%`;
+      itens.push(
+        `Chance de ${esc(b.nome)} virar: <b>${p}</b> (${rotuloChance(cv.prob)}). Pelo que falta apurar em cada lugar, ` +
+          `${esc(a.nome)} deve terminar entre ${ppSinal(cv.baixo)} e ${ppSinal(cv.alto)} p.p.` +
+          (cv.media < 0 ? ` A tendência é de virada: o que falta favorece ${esc(b.nome)}.` : ""),
+      );
+    }
     const us = unidades(d);
     if (!fim && us?.length) {
       const proj = projetar(us, d1);
@@ -756,6 +972,17 @@ function renderResumo(d, d1) {
           `Desse espaço, ${esc(a.nome)} ficou com cerca de <b>${pctFmt.format((ga / (ga + gb)) * 100)}%</b> e ${esc(b.nome)} com <b>${pctFmt.format((gb / (ga + gb)) * 100)}%</b>.`,
       );
     }
+  }
+  // mesmo turno de 2022, pelo partido de cada candidato
+  const d22 = conjunto2022(cfg.turno, cfg.cargo);
+  const r22 = d22.brasil && cfg.fonte !== "replay" ? resultadoRecorte(d22) : null;
+  if (r22?.validos && r.validos && mostraCandidatos() && a && b) {
+    const partes = [a, b].map((c) => {
+      const p22 = pct(votosDe(r22, c.numero), r22.validos), p26 = pct(c.votos, r.validos);
+      const quem = r22.candidatos.find((x) => x.numero === c.numero);
+      return quem ? `${esc(c.partido)}: ${pctFmt.format(p22)}% em 2022 (${esc(quem.nome)}) → ${pctFmt.format(p26)}% agora (${delta(p26 - p22)})` : "";
+    }).filter(Boolean);
+    if (partes.length) itens.push(`Comparado ao ${NOME_TURNO[cfg.turno]} de 2022 aqui: ${partes.join("; ")}.`);
   }
   $("#resumo").innerHTML = itens.map((t) => `<li>${t}</li>`).join("");
 }
@@ -900,10 +1127,16 @@ function renderProjecao(d, d1) {
       .join("");
 }
 
-function renderComparacao(d, d1) {
+function renderComparacao(d) {
   const bloco = $("#bloco-comparacao");
   const rec = cfg.recorte;
-  bloco.hidden = !d1?.carregado || !d1.brasil;
+  const base = baseComparacao();
+  const d1 = base.d;
+  $("#seg-base").innerHTML = base.opcoes.length > 1
+    ? base.opcoes.map((o) => `<button type="button" data-v="${o}" aria-pressed="${o === base.tipo}">${typeof ROTULO_OPCAO[o] === "function" ? ROTULO_OPCAO[o]() : ROTULO_OPCAO[o]}</button>`).join("")
+    : "";
+  $("#titulo-comparacao").textContent = `${NOME_TURNO[cfg.turno]} de 2026 × ${base.rotulo}`;
+  bloco.hidden = !d1?.carregado || !d1.brasil || !d.brasil;
   if (bloco.hidden) return;
   const ufs = ufsDoRecorte(rec).filter((uf) => d.estados[uf] && d1.estados[uf]);
   const nacional = !governador() ? resultadoRecorte(d) : null;
@@ -913,10 +1146,16 @@ function renderComparacao(d, d1) {
     bloco.hidden = true;
     return;
   }
+  const em2022 = base.tipo === "2022";
+  const quem2022 = em2022 && nacional
+    ? " Em 2022: " + nacional.candidatos.slice(0, 2).map((c) => `${c.partido} = ${d1.brasil.candidatos.find((x) => x.numero === c.numero)?.nome || "sem candidato"}`).join(", ") + "."
+    : "";
   $("#comparacao-nota").textContent =
-    "Percentual dos votos válidos de cada candidato no 1º turno e no 2º (até agora). Clique num estado para filtrar.";
-  renderMapasLado(d, d1);
-  renderViradas(d, d1);
+    `Percentual dos votos válidos no ${base.rotulo} e agora` +
+    (em2022 ? ", comparando pelo partido de cada candidato." + quem2022 : ".") +
+    " Clique num estado para filtrar.";
+  renderMapasLado(d, d1, base);
+  renderViradas(d, d1, base);
   const celula = (r1, r2, c) => {
     if (!c) return "<td></td><td></td>";
     const p1 = pct(votosDe(r1, c.numero), r1.validos), p2 = pct(votosDe(r2, c.numero), r2.validos);
@@ -945,7 +1184,7 @@ function renderComparacao(d, d1) {
 let ladoSeq = 0;
 
 /** Dois mapas pequenos, quem ganhou no 1º turno e quem ganha agora, no mesmo recorte. */
-async function renderMapasLado(d, d1) {
+async function renderMapasLado(d, d1, base) {
   const rec = cfg.recorte;
   const nome = ehUF(rec) && rec !== "ZZ" ? rec.toLowerCase() : "br";
   const box = $("#mapas-lado");
@@ -954,13 +1193,13 @@ async function renderMapasLado(d, d1) {
   try { geo = await carregarMapa(nome); } catch { box.innerHTML = ""; return; }
   if (seq !== ladoSeq) return;
   box.classList.toggle("cidades", nome !== "br");
-  box.innerHTML = `<figure><figcaption>1º turno · 04/10</figcaption><div data-lado="1"></div></figure>
-    <figure><figcaption>2º turno · ${completo(resultadoRecorte(d)) ? "resultado" : "agora"}</figcaption><div data-lado="2"></div></figure>`;
+  box.innerHTML = `<figure><figcaption>${esc(base.curto)}</figcaption><div data-lado="1"></div></figure>
+    <figure><figcaption>${NOME_TURNO[cfg.turno]} 2026 · ${completo(resultadoRecorte(d)) ? "resultado" : "agora"}</figcaption><div data-lado="2"></div></figure>`;
   desenharMapa(box.querySelector('[data-lado="1"]'), geo, areasMapa(d1, rec, geo, nome), corVencedor, rec, nome);
   desenharMapa(box.querySelector('[data-lado="2"]'), geo, areasMapa(d, rec, geo, nome), corVencedor, rec, nome);
 }
 
-function renderViradas(d, d1) {
+function renderViradas(d, d1, base) {
   const rec = cfg.recorte;
   const cidades = ehUF(rec) && rec !== "ZZ";
   const pares = cidades
@@ -969,14 +1208,17 @@ function renderViradas(d, d1) {
   const validos = pares.filter((p) => p.r1?.validos && p.r2?.validos);
   const tipo = cidades ? "cidades" : "estados";
   if (!validos.length) {
-    $("#viradas-resumo").textContent = cidades && !d1.cidades[rec] ? "Carregando as cidades do 1º turno…" : "As viradas aparecem quando o 2º turno tiver votos apurados.";
+    $("#viradas-resumo").textContent = cidades && !d1.cidades[rec]
+      ? `Carregando as cidades (${base.rotulo})…`
+      : `As viradas aparecem quando o ${NOME_TURNO[cfg.turno]} de 2026 tiver votos apurados.`;
     $("#viradas").innerHTML = "";
     return;
   }
   const viradas = validos.filter((p) => p.r1.candidatos[0].numero !== p.r2.candidatos[0].numero);
+  const oque = base.tipo === "2022" ? "de partido vencedor" : "de vencedor";
   $("#viradas-resumo").innerHTML = viradas.length
-    ? `<b>${viradas.length}</b> de ${validos.length} ${tipo} mudaram de vencedor em relação ao 1º turno${completo(resultadoRecorte(d)) ? "" : " (até agora)"}:`
-    : `Nenhum dos ${validos.length} ${tipo} mudou de vencedor em relação ao 1º turno${completo(resultadoRecorte(d)) ? "" : " até agora"}.`;
+    ? `<b>${viradas.length}</b> de ${validos.length} ${tipo} mudaram ${oque} em relação ao ${base.rotulo}${completo(resultadoRecorte(d)) ? "" : " (até agora)"}:`
+    : `Nenhum dos ${validos.length} ${tipo} mudou ${oque} em relação ao ${base.rotulo}${completo(resultadoRecorte(d)) ? "" : " até agora"}.`;
   $("#viradas").innerHTML = viradas
     .sort((a, b) => b.r2.validos - a.r2.validos)
     .slice(0, 24)
@@ -1151,7 +1393,7 @@ function renderAll() {
     renderEventos(d);
     renderRegioes(d);
     renderProjecao(d, d1);
-    renderComparacao(d, d1);
+    renderComparacao(d);
     renderRankings(d, d1);
   } else if (aba === "estados") {
     renderEstados(d);
@@ -1189,6 +1431,8 @@ async function atualizar({ forcar = false } = {}) {
   // apuração encerrada não muda mais: não precisa baixar de novo
   if (!d.carregado || forcar || !completo(d.brasil)) tarefas.push(carregarEstados(d));
   if (d1 && !d1.carregado) tarefas.push(carregarEstados(d1));
+  const d22 = conjunto2022(cfg.turno, cfg.cargo);
+  if (!d22.carregado) tarefas.push(d22.pronto);
   if (tarefas.length) {
     carregandoAgora = true;
     renderTopo(d);
@@ -1206,9 +1450,15 @@ async function atualizar({ forcar = false } = {}) {
     await carregarCidades(d, uf, () => atual() === d && ufDasCidades() === uf).catch(() => {});
     if (atual() === d) renderAll();
   }
-  // cidades do 1º turno, para os mapas lado a lado e as viradas (baixadas uma vez só)
-  if (uf && d1?.brasil && (!d1.cidades[uf] || d1.cidades[uf].some((m) => !m.r))) {
+  // cidades da base de comparação, para os mapas lado a lado e as viradas (baixadas uma vez só)
+  const base = baseComparacao();
+  if (uf && base.tipo === "t1" && d1?.brasil && (!d1.cidades[uf] || d1.cidades[uf].some((m) => !m.r))) {
     await carregarCidades(d1, uf, () => ufDasCidades() === uf).catch(() => {});
+    if (atual() === d) renderAll();
+  }
+  if (uf && base.tipo === "2022" && base.d.brasil && !base.d.cidades[uf]) {
+    const lista = (await d.fonte.listaMunicipios().catch(() => ({})))[uf] || [];
+    await cidades2022(base.d, uf, lista);
     if (atual() === d) renderAll();
   }
 }
@@ -1223,7 +1473,7 @@ function escolherRecorte(rec) {
   setTimeout(async () => {
     if (!document.hidden) await atualizar().catch(() => {});
     ciclo();
-  }, cfg.fonte === "demo" ? REFRESH_DEMO_MS : REFRESH_MS);
+  }, cfg.fonte === "tse" ? REFRESH_MS : REFRESH_DEMO_MS);
 })();
 let larguraAnterior = innerWidth;
 addEventListener("resize", () => {
@@ -1267,6 +1517,7 @@ document.querySelectorAll("#seg-cargo button").forEach((b) =>
 );
 $("#fonte").addEventListener("change", (ev) => {
   cfg.fonte = ev.target.value;
+  if (cfg.fonte === "replay") { cfg.turno = "2"; cfg.cargo = "0001"; cache.delete("replay|replay2022|0001"); }
   saveConfig();
   atualizar();
 });
@@ -1290,6 +1541,12 @@ for (const sel of ["#tabela-estados", "#tabela-comparacao", "#placar", "#viradas
     if (el) escolherRecorte(el.dataset.uf);
   });
 }
+$("#seg-base").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-v]");
+  if (!b) return;
+  escolhaBase = b.dataset.v;
+  atualizar();
+});
 $("#mapas-lado").addEventListener("click", (ev) => {
   const p = ev.target.closest("path[data-chave]");
   if (p && UFS[p.dataset.chave] && !ehUF(cfg.recorte)) escolherRecorte(p.dataset.chave);

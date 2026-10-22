@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
   <header class="topo">
@@ -107,7 +107,8 @@
       </div>
       <div class="card" id="bloco-comparacao" hidden>
         <div class="card-head">
-          <h3 id="titulo-comparacao">1º turno × 2º turno</h3>
+          <h3 id="titulo-comparacao">Comparação</h3>
+          <div class="seg seg-sm" id="seg-base" role="group" aria-label="Comparar com"></div>
         </div>
         <div class="mapas-lado" id="mapas-lado"></div>
         <p class="viradas-resumo" id="viradas-resumo"></p>
@@ -177,6 +178,7 @@
       <select id="fonte">
         <option value="tse">TSE (ao vivo)</option>
         <option value="demo">Simulação</option>
+        <option value="replay">Replay do 2º turno de 2022</option>
       </select>
     </label>
     <span id="rodape-txt">Dados: Tribunal Superior Eleitoral (resultados.tse.jus.br). Mapas: malhas municipais do IBGE. Atualiza sozinho a cada 30 segundos.</span>
@@ -184,6 +186,6 @@
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
-  <script type="module" src="app.js?v=8"></script>
+  <script type="module" src="app.js?v=10"></script>
 </body>
 </html>
