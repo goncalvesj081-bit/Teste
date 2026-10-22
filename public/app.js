@@ -1,5 +1,5 @@
-import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=11";
-import { chancePorCidades, PERFIS } from "./modelo.js?v=11";
+import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=14";
+import { chancePorCidades, PERFIS } from "./modelo.js?v=14";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
@@ -385,32 +385,38 @@ function normal(rnd) {
 }
 const limitar = (x) => Math.min(0.98, Math.max(0.02, x));
 
-let memoVirada = { chave: "", valor: null };
-
-/**
- * Chance de o 2º colocado ainda passar o 1º. Para cada estado (ou cidade, num estado) estima
- * quantos votos faltam e como eles devem se dividir: o que já foi apurado ali, misturado, quando
- * se apurou pouco, com o resultado do mesmo lugar em 2022 corrigido pela mudança já vista no país.
- * Depois sorteia milhares de finais com uma margem de erro (comum a todos e própria de cada lugar)
- * que encolhe conforme a apuração avança. Estimativa simples, não é previsão oficial.
- */
-function chanceVirada(d) {
-  const r = resultadoRecorte(d);
-  if (!r?.apuradas || completo(r) || !mostraCandidatos() || r.candidatos.length < 2) return null;
-  return chancePorCidade(d, r) || chancePorEstado(d, r);
+// guarda as contas já feitas (a mesma leitura é desenhada várias vezes)
+const memoChance = new Map();
+function lembrar(chave, fazer) {
+  if (memoChance.has(chave)) return memoChance.get(chave);
+  if (memoChance.size > 40) memoChance.clear();
+  const v = fazer();
+  memoChance.set(chave, v);
+  return v;
 }
 
-let memoCidade = { chave: "", valor: null };
+/**
+ * Chance de o 2º colocado ainda passar o 1º num recorte (Brasil, região ou estado).
+ * Devolve { prob, A, B, media, baixo, alto, porCidade, lugares } ou null fora da apuração.
+ * lugares: onde estão os votos que faltam e quanto cada lugar deve render para A (saldo).
+ */
+function chanceVirada(d, rec = cfg.recorte) {
+  const r = resultadoRecorte(d, rec);
+  if (!r?.apuradas || completo(r) || (governador() && !ehUF(rec)) || r.candidatos.length < 2) return null;
+  return chancePorCidade(d, r, rec) || chancePorEstado(d, r, rec);
+}
 
 /**
  * Conta principal (public/modelo.js): cidade por cidade, com o 1º turno como referência.
  * Devolve null quando falta a base ou o andamento de algum estado do recorte.
  */
-function chancePorCidade(d, r) {
+function chancePorCidade(d, r, rec) {
   if (!usaCidades(d) || !d.base) return null;
   const [A, B] = r.candidatos;
-  const chave = `${d.chave}|${cfg.recorte}|${d.lido?.getTime()}|${r.apuradas}|${A.numero}`;
-  if (memoCidade.chave === chave) return memoCidade.valor;
+  return lembrar(`cid|${d.chave}|${rec}|${d.lido?.getTime()}|${r.apuradas}|${A.numero}`, () => contaPorCidade(d, r, rec, A, B));
+}
+
+function contaPorCidade(d, r, rec, A, B) {
   const montar = (uf) => {
     const e = d.estados[uf], bu = d.base.ufs[uf];
     if (!e || !bu) return null;
@@ -428,26 +434,45 @@ function chancePorCidade(d, r) {
     });
     return { a: votosDe(e, A.numero), b: votosDe(e, B.numero), cidades };
   };
-  const doRecorte = ufsDoRecorte(cfg.recorte).filter((uf) => d.estados[uf]).map(montar);
+  const ufs = ufsDoRecorte(rec).filter((uf) => d.estados[uf]);
+  const doRecorte = ufs.map(montar);
   if (!doRecorte.length || doRecorte.some((x) => x === undefined)) return null;
+  const usados = ufs.filter((_, i) => doRecorte[i]);
   const estados = doRecorte.filter(Boolean);
   const todos = governador() ? estados : Object.keys(UFS).map(montar).filter(Boolean);
   const res = chancePorCidades({
     a: votosDe(r, A.numero), b: votosDe(r, B.numero), estados, paraMudanca: todos,
     frac: r.apuradas / r.secoes, semente: r.apuradas * 31 + 7, erro: governador() ? PERFIS.governador : PERFIS.presidente,
   });
-  const valor = { prob: 1 - res.probA, A, B, media: res.media, baixo: res.baixo, alto: res.alto, porCidade: true };
-  memoCidade = { chave, valor };
-  return valor;
+  // onde estão os votos que faltam: por estado, ou por cidade quando o recorte é um estado
+  let lugares;
+  if (ehUF(rec)) {
+    const uf = usados[0];
+    const nomes = new Map((d.cidades[uf] || []).map((m) => [m.codigo, m.nome]));
+    const cods = Object.keys(d.base.ufs[uf]?.cidades || {});
+    lugares = (res.porEstado[0]?.cidades || []).map((c, i) => ({ nome: nomes.get(cods[i]) || `Cidade ${cods[i]}`, ...c }));
+  } else {
+    lugares = res.porEstado.map((e, i) => ({ uf: usados[i], nome: UFS[usados[i]][0], resto: e.resto, saldo: e.saldo }));
+  }
+  return { prob: 1 - res.probA, A, B, media: res.media, baixo: res.baixo, alto: res.alto, porCidade: true, lugares };
 }
 
 /** Conta reserva, por estado (simulação, eleição avulsa ou quando falta o índice por cidade). */
-function chancePorEstado(d, r) {
-  const us = unidades(d);
+function chancePorEstado(d, r, rec) {
+  const us = unidades(d, rec);
   if (!us?.length) return null;
-  const chave = `${d.chave}|${cfg.recorte}|${r.apuradas}|${us.length}|${us.reduce((t, u) => t + u.r.apuradas, 0)}`;
-  if (memoVirada.chave === chave) return memoVirada.valor;
+  return lembrar(
+    `est|${d.chave}|${rec}|${r.apuradas}|${us.length}|${us.reduce((t, u) => t + u.r.apuradas, 0)}`,
+    () => contaPorEstado(d, r, us),
+  );
+}
 
+/**
+ * Para cada estado (ou cidade, num estado) estima quantos votos faltam e como eles devem se
+ * dividir: o que já foi apurado ali, misturado, quando se apurou pouco, com o resultado do mesmo
+ * lugar em 2022 corrigido pela mudança já vista no país. Depois sorteia finais com margem de erro.
+ */
+function contaPorEstado(d, r, us) {
   const [A, B] = r.candidatos;
   const d1 = primeiroTurno();
   const d22 = conjunto2022(cfg.turno, cfg.cargo);
@@ -469,6 +494,7 @@ function chancePorEstado(d, r) {
 
   let restoTotal = 0;
   const itens = [];
+  const lugares = [];
   for (const u of us) {
     const resto = restanteEstimado(u.r, u.cidade ? null : d1?.estados[u.id] || (cfg.fonte !== "replay" ? d22.estados?.[u.id] : null));
     if (resto <= 0) continue;
@@ -476,11 +502,13 @@ function chancePorEstado(d, r) {
     const frac = u.r.apuradas / u.r.secoes;
     const c = dois(u.r), p = antes(u);
     const previsto = p ? limitar(p.s + mudanca) : geral ? geral.s : 0.5;
-    itens.push({
+    const it = {
       resto: resto * (c ? c.f : geral ? geral.f : 1),
       media: c ? frac * c.s + (1 - frac) * previsto : previsto,
       erro: 0.04 * (1 - frac) + 0.005,
-    });
+    };
+    itens.push(it);
+    lugares.push({ uf: u.cidade ? undefined : u.id, nome: u.nome, resto: it.resto, saldo: it.resto * (2 * it.media - 1) });
   }
   const erroComum = 0.02 * (1 - r.apuradas / r.secoes) + 0.002;
   const rnd = aleatorio(r.apuradas * 31 + itens.length);
@@ -500,15 +528,14 @@ function chancePorEstado(d, r) {
   }
   margens.sort();
   const validosFinal = r.validos + restoTotal;
-  const valor = {
+  return {
     prob: viradas / N,
     A, B,
     media: pct(margens[N >> 1], validosFinal),
-    baixo: pct(margens[Math.floor(N * 0.1)], validosFinal),
-    alto: pct(margens[Math.floor(N * 0.9)], validosFinal),
+    baixo: pct(margens[Math.floor(N * 0.05)], validosFinal),
+    alto: pct(margens[Math.floor(N * 0.95)], validosFinal),
+    lugares,
   };
-  memoVirada = { chave, valor };
-  return valor;
 }
 
 function rotuloChance(p) {
@@ -595,8 +622,13 @@ function registrar(d) {
   let ant = h[h.length - 1];
   if (ant && ant.u.br[0] === d.brasil.apuradas) return null;
   if (ant && ant.u.br[0] > d.brasil.apuradas) { h.length = 0; ant = null; } // a contagem recomeçou
-  const novo = { t: Date.now(), u: { br: resumir(d.brasil) } };
+  const novo = { t: Date.now(), u: { br: resumir(d.brasil) }, ch: {} };
   for (const [uf, r] of Object.entries(d.estados)) if (r) novo.u[uf] = resumir(r);
+  // chance de vitória de quem lidera: no Brasil (presidente) ou em cada estado (governador)
+  for (const rec of governador() ? Object.keys(d.estados).filter((uf) => d.estados[uf]) : [""]) {
+    const cv = chanceVirada(d, rec);
+    if (cv) novo.ch[rec || "br"] = [cv.A.numero, Math.round((1 - cv.prob) * 1000) / 1000];
+  }
   h.push(novo);
   if (h.length > HIST_MAX) h.splice(0, h.length - HIST_MAX);
   if (guarda()) try { localStorage.setItem("hist|" + d.chave, JSON.stringify(h)); } catch {}
@@ -666,6 +698,27 @@ function detectarEventos(d, ant, novo) {
       ev.push({ uf, tipo: "Virada", txt: `Virada em ${UFS[uf][0]}: ${nomeCand(d, n[3], uf)} passou à frente de ${nomeCand(d, n[5], uf)}` });
     }
   }
+  // chance de vitória: ch[lugar] = [número de quem lidera, chance dele]
+  for (const [k, n] of Object.entries(novo.ch || {})) {
+    const a = ant.ch?.[k];
+    if (!a) continue;
+    const uf = k === "br" ? undefined : k;
+    const onde = uf ? `em ${UFS[uf][0]}` : "no Brasil";
+    const u = novo.u[k];
+    const outro = u?.[3] === n[0] ? u?.[5] : u?.[3];
+    // olha os dois: quem lidera nos votos e quem está atrás (o caso da virada)
+    for (const [num, agora] of [[n[0], n[1]], [outro, 1 - n[1]]]) {
+      if (!num) continue;
+      const antes = a[0] === num ? a[1] : 1 - a[1]; // chance que o mesmo candidato tinha antes
+      const nome = nomeCand(d, num, uf);
+      if (antes < 0.5 && agora >= 0.5) {
+        ev.push({ uf, tipo: "Chance de virada", txt: `${nome} passa a ser o favorito ${onde}: ${Math.round(agora * 100)}% de chance de vencer` });
+      }
+      if (antes < 0.9 && agora >= 0.9) {
+        ev.push({ uf, tipo: "Chance de vitória", txt: `${nome} chega a ${Math.round(agora * 100)}% de chance de vencer ${onde}` });
+      }
+    }
+  }
   return ev.map((e) => ({ ...e, t: novo.t }));
 }
 
@@ -676,7 +729,59 @@ function anotarEventos(d, ev) {
   if (guarda()) try { localStorage.setItem("ev|" + d.chave, JSON.stringify(d.eventos)); } catch {}
   // até 3 avisos de uma vez na tela; o resto fica na lista de acontecimentos
   ev.slice(-3).forEach((e) => toast(e.txt, { titulo: e.tipo, uf: e.uf }));
+  ev.slice(-3).forEach((e) => notificar(e.tipo || "Apuração 2026", e.txt));
 }
+
+// ---- notificações do aparelho (celular ou computador), para quem deixa o painel em segundo plano
+
+const suportaAvisos = "Notification" in window;
+let avisosLigados = false;
+try { avisosLigados = suportaAvisos && localStorage.getItem("avisos") === "1" && Notification.permission === "granted"; } catch {}
+
+async function registroAvisos() {
+  // no Android a notificação só sai por um service worker; nos outros ele também funciona
+  if (!("serviceWorker" in navigator)) return null;
+  try { return await navigator.serviceWorker.register("sw.js"); } catch { return null; }
+}
+
+async function notificar(titulo, texto) {
+  if (!avisosLigados || !document.hidden) return; // com a página aberta, o aviso na tela basta
+  const opcoes = { body: texto, tag: `${titulo}|${texto}`, data: { url: location.href } };
+  try {
+    const reg = await registroAvisos();
+    if (reg) await reg.showNotification(titulo, opcoes);
+    else new Notification(titulo, opcoes);
+  } catch {}
+}
+
+function botaoAvisos() {
+  const b = $("#btn-avisos");
+  b.hidden = !suportaAvisos;
+  b.textContent = avisosLigados ? "Avisos ligados" : "Ligar avisos";
+  b.setAttribute("aria-pressed", String(avisosLigados));
+}
+
+$("#btn-avisos").addEventListener("click", async () => {
+  if (avisosLigados) {
+    avisosLigados = false;
+    try { localStorage.setItem("avisos", "0"); } catch {}
+    botaoAvisos();
+    toast("Avisos desligados.", { ms: 3000 });
+    return;
+  }
+  let permissao = Notification.permission;
+  if (permissao === "default") permissao = await Notification.requestPermission().catch(() => "denied");
+  if (permissao !== "granted") {
+    toast("O navegador não deixou mandar avisos. Libere as notificações deste site nas configurações do navegador.", { ms: 8000 });
+    return;
+  }
+  await registroAvisos();
+  avisosLigados = true;
+  try { localStorage.setItem("avisos", "1"); } catch {}
+  botaoAvisos();
+  toast("Avisos ligados: com o painel em segundo plano, viradas, chances e o fim da apuração chegam como notificação.", { ms: 7000 });
+});
+botaoAvisos();
 
 function toast(txt, { titulo = "", uf = "", ms = 9000, html = "" } = {}) {
   const el = document.createElement("div");
@@ -1070,34 +1175,22 @@ function renderResumo(d, d1) {
   $("#resumo").innerHTML = itens.map((t) => `<li>${t}</li>`).join("");
 }
 
-/** Gráfico do % dos válidos dos dois primeiros conforme as urnas foram apuradas. */
-function renderLinhaTempo(d) {
-  const bloco = $("#bloco-linha");
-  const el = $("#linha");
-  const r = resultadoRecorte(d);
-  if (!r || !mostraCandidatos() || r.candidatos.length < 2) { bloco.hidden = true; return; }
-  const pts = historico(d).map((x) => pontoRecorte(x, cfg.recorte)).filter(Boolean);
-  if (pts.length < 2) {
-    // apuração já encerrada e nada guardado: não há o que mostrar
-    bloco.hidden = completo(d.brasil);
-    $("#linha-legenda").innerHTML = "";
-    el.innerHTML = `<p class="nota">A linha do tempo vai sendo montada enquanto o painel fica aberto durante a apuração: cada atualização vira um ponto. ${d.brasil?.apuradas ? "Já começou a contar." : "Começa quando as primeiras urnas forem apuradas."}</p>`;
-    return;
-  }
-  bloco.hidden = false;
-  const cands = r.candidatos.slice(0, 2).sort(porSlot);
-  const series = cands.map((c) => ({ c, pts: pts.map((p) => ({ x: p.x, y: pct(p.votos.get(c.numero) || 0, p.validos), t: p.t })) }));
-  $("#linha-legenda").innerHTML =
-    cands.map((c) => `<span><i class="swatch" style="background:${cor(c.numero)}"></i> ${esc(nomeCurto(c))}</span>`).join("") +
-    `<span class="muted">% dos válidos × % de urnas apuradas</span>`;
-
-  const W = Math.max(300, el.clientWidth || 700), H = W < 520 ? 220 : 260;
+/**
+ * Gráfico de linhas contra o % de urnas apuradas, com rótulo no fim de cada linha e tooltip.
+ * series: [{ c: candidato, pts: [{ x, y, t }] }] (todas com os mesmos x); fixo: [y0, y1] ou nulo.
+ */
+function graficoLinhas(el, series, { fixo = null, rotulo = "Linha do tempo da apuração", casas = pctFmt } = {}) {
+  const W = Math.max(300, el.clientWidth || 700), H = fixo ? (W < 520 ? 160 : 180) : W < 520 ? 220 : 260;
   const m = { l: 40, r: W < 520 ? 56 : 160, t: 12, b: 28 };
-  const ys = series.flatMap((s) => s.pts.map((p) => p.y));
-  let y0 = Math.min(...ys, 50), y1 = Math.max(...ys, 50);
-  const folga = Math.max(1, (y1 - y0) * 0.15);
-  y0 = Math.max(0, Math.floor(y0 - folga)); y1 = Math.min(100, Math.ceil(y1 + folga));
-  const passo = [1, 2, 5, 10, 20].find((p) => (y1 - y0) / p <= 6) || 25;
+  let y0, y1;
+  if (fixo) [y0, y1] = fixo;
+  else {
+    const ys = series.flatMap((s) => s.pts.map((p) => p.y));
+    y0 = Math.min(...ys, 50); y1 = Math.max(...ys, 50);
+    const folga = Math.max(1, (y1 - y0) * 0.15);
+    y0 = Math.max(0, Math.floor(y0 - folga)); y1 = Math.min(100, Math.ceil(y1 + folga));
+  }
+  const passo = [1, 2, 5, 10, 20, 25].find((p) => (y1 - y0) / p <= 6) || 50;
   const X = (x) => m.l + (x / 100) * (W - m.l - m.r);
   const Y = (y) => m.t + (1 - (y - y0) / (y1 - y0)) * (H - m.t - m.b);
   let grade = "";
@@ -1112,13 +1205,13 @@ function renderLinhaTempo(d) {
       const d0 = ps.map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join("");
       const u = ps[ps.length - 1];
       const nome = c.nome.length > 14 ? c.nome.slice(0, 13) + "…" : c.nome;
-      const rot = W >= 520 ? `${esc(nome)} ${pctFmt.format(u.y)}%` : `${ppFmt.format(u.y)}%`;
+      const rot = W >= 520 ? `${esc(nome)} ${casas.format(u.y)}%` : `${ppFmt.format(u.y)}%`;
       return `<path class="serie" d="${d0}" style="stroke:${cor(c.numero)}"></path>
         <circle class="ponto" cx="${X(u.x)}" cy="${Y(u.y)}" r="4.5" style="fill:${cor(c.numero)}"></circle>
         <text class="rotulo" x="${X(u.x) + 8}" y="${Y(u.y) + 4}">${rot}</text>`;
     })
     .join("");
-  el.innerHTML = `<svg class="linha-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Linha do tempo da apuração">
+  el.innerHTML = `<svg class="linha-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(rotulo)}">
     <g class="grade">${grade}</g>
     <line class="meio-linha" x1="${m.l}" x2="${W - m.r}" y1="${Y(50)}" y2="${Y(50)}"></line>
     ${eixoX}${linhas}
@@ -1127,23 +1220,104 @@ function renderLinhaTempo(d) {
   </svg>`;
 
   // passar o mouse mostra o momento mais próximo
+  const pts = series[0].pts;
   const svg = el.querySelector("svg");
   const mira = svg.querySelector(".mira");
   svg.addEventListener("pointermove", (ev) => {
     const box = svg.getBoundingClientRect();
-    const xp = ((ev.clientX - box.left) / box.width) * W;
-    const alvo = ((xp - m.l) / (W - m.l - m.r)) * 100;
+    const alvo = ((((ev.clientX - box.left) / box.width) * W - m.l) / (W - m.l - m.r)) * 100;
     let i = 0;
     pts.forEach((p, k) => { if (Math.abs(p.x - alvo) < Math.abs(pts[i].x - alvo)) i = k; });
     mira.setAttribute("x1", X(pts[i].x)); mira.setAttribute("x2", X(pts[i].x)); mira.setAttribute("visibility", "visible");
     tip.innerHTML =
       `<strong>${pctFmt.format(pts[i].x)}% das urnas · ${hora(new Date(pts[i].t))}</strong>` +
-      series.map(({ c, pts: ps }) => `<div><span>${sw(c)} ${esc(nomeCurto(c))}</span><b>${pctFmt.format(ps[i].y)}%</b></div>`).join("");
+      series.map(({ c, pts: ps }) => `<div><span>${sw(c)} ${esc(nomeCurto(c))}</span><b>${casas.format(ps[i].y)}%</b></div>`).join("");
     tip.hidden = false;
     tip.style.left = Math.max(8, Math.min(ev.clientX + 14, innerWidth - tip.offsetWidth - 8)) + "px";
     tip.style.top = Math.max(8, Math.min(ev.clientY + 14, innerHeight - tip.offsetHeight - 8)) + "px";
   });
   svg.addEventListener("pointerleave", () => { tip.hidden = true; mira.setAttribute("visibility", "hidden"); });
+}
+
+const inteiro = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const umaCasa = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+const votosCurto = (n) => (n >= 1e6 ? `${umaCasa.format(n / 1e6)} mi` : n >= 1e4 ? `${inteiro.format(n / 1e3)} mil` : inteiro.format(n));
+
+/** Lugares que mais pesam no que falta: muitos votos a apurar e vantagem clara para um lado. */
+function renderDecisao(d) {
+  const bloco = $("#bloco-decisao");
+  const cv = chanceVirada(d);
+  const r = resultadoRecorte(d);
+  const lugares = (cv?.lugares || []).filter((l) => l.resto >= 1);
+  bloco.hidden = !lugares.length;
+  if (bloco.hidden) return;
+  const { A, B } = cv;
+  const tipo = ehUF(cfg.recorte) ? "cidades" : "estados";
+  const lista = [...lugares].sort((x, y) => Math.abs(y.saldo) - Math.abs(x.saldo)).slice(0, 8);
+  const max = Math.max(...lista.map((l) => Math.abs(l.saldo)), 1);
+  const faltam = lugares.reduce((t, l) => t + l.resto, 0);
+  $("#decisao-nota").textContent =
+    `Os ${tipo} que mais podem mexer no resultado: onde ainda faltam muitos votos e um dos dois deve ter vantagem clara. ` +
+    `Estimativa pela mesma conta da chance de virada.`;
+  $("#decisao").innerHTML = lista
+    .map((l) => {
+      const quem = l.saldo >= 0 ? A : B;
+      return `<li${l.uf ? ` data-uf="${l.uf}"` : ""}>
+        <div class="linha"><b>${esc(l.nome)}</b><span>faltam ~${votosCurto(l.resto)} votos</span></div>
+        <div class="saldo"><i style="width:${(Math.abs(l.saldo) / max) * 100}%;background:${cor(quem.numero)}"></i></div>
+        <div class="linha sub"><span>${sw(quem)} ${esc(nomeCurto(quem))} deve tirar ~${votosCurto(Math.abs(l.saldo))} de vantagem aqui</span></div>
+      </li>`;
+    })
+    .join("");
+  const agora = votosDe(r, A.numero) - votosDe(r, B.numero);
+  const saldo = lugares.reduce((t, l) => t + l.saldo, 0);
+  const quemGanha = saldo >= 0 ? A : B;
+  const final = agora + saldo;
+  $("#decisao-total").innerHTML =
+    `Agora: ${sw(A)} <b>${esc(A.nome)}</b> à frente por <b>${votosCurto(agora)}</b> votos. ` +
+    `Faltam ~${votosCurto(faltam)} votos, que devem render ~<b>${votosCurto(Math.abs(saldo))}</b> de vantagem para ${sw(quemGanha)} ${esc(quemGanha.nome)}. ` +
+    (final >= 0
+      ? `Assim, ${esc(A.nome)} terminaria ~${votosCurto(final)} votos à frente.`
+      : `Assim, ${esc(B.nome)} viraria e terminaria ~${votosCurto(-final)} votos à frente.`);
+}
+
+/** Linha do tempo: % dos válidos e chance de vitória dos dois primeiros conforme as urnas chegam. */
+function renderLinhaTempo(d) {
+  const bloco = $("#bloco-linha");
+  const el = $("#linha");
+  const elChance = $("#linha-chance");
+  const r = resultadoRecorte(d);
+  if (!r || !mostraCandidatos() || r.candidatos.length < 2) { bloco.hidden = true; return; }
+  const hist = historico(d);
+  const pts = hist.map((x) => pontoRecorte(x, cfg.recorte)).filter(Boolean);
+  if (pts.length < 2) {
+    // apuração já encerrada e nada guardado: não há o que mostrar
+    bloco.hidden = completo(d.brasil);
+    $("#linha-legenda").innerHTML = "";
+    el.innerHTML = `<p class="nota">A linha do tempo vai sendo montada enquanto o painel fica aberto durante a apuração: cada atualização vira um ponto. ${d.brasil?.apuradas ? "Já começou a contar." : "Começa quando as primeiras urnas forem apuradas."}</p>`;
+    elChance.hidden = true;
+    return;
+  }
+  bloco.hidden = false;
+  const cands = r.candidatos.slice(0, 2).sort(porSlot);
+  $("#linha-legenda").innerHTML =
+    cands.map((c) => `<span><i class="swatch" style="background:${cor(c.numero)}"></i> ${esc(nomeCurto(c))}</span>`).join("") +
+    `<span class="muted">% dos válidos × % de urnas apuradas</span>`;
+  graficoLinhas(el, cands.map((c) => ({ c, pts: pts.map((p) => ({ x: p.x, y: pct(p.votos.get(c.numero) || 0, p.validos), t: p.t })) })));
+
+  // chance de vitória ao longo da apuração (guardada a cada leitura: Brasil ou estado de governador)
+  const chave = !cfg.recorte ? "br" : ehUF(cfg.recorte) ? cfg.recorte : null;
+  const comChance = chave
+    ? hist.map((x) => ({ x, p: pontoRecorte(x, cfg.recorte), ch: x.ch?.[chave] })).filter((o) => o.p && o.ch)
+    : [];
+  elChance.hidden = comChance.length < 2;
+  if (elChance.hidden) return;
+  const chanceDe = (c, ch) => 100 * (ch[0] === c.numero ? ch[1] : 1 - ch[1]);
+  graficoLinhas(
+    elChance.querySelector(".grafico"),
+    cands.map((c) => ({ c, pts: comChance.map((o) => ({ x: o.p.x, y: chanceDe(c, o.ch), t: o.p.t })) })),
+    { fixo: [0, 100], rotulo: "Chance de vitória ao longo da apuração", casas: inteiro },
+  );
 }
 
 function renderEventos(d) {
@@ -1472,6 +1646,7 @@ function renderAll() {
   renderMapa(d);
   if (aba === "analises") {
     renderResumo(d, d1);
+    renderDecisao(d);
     renderLinhaTempo(d);
     renderEventos(d);
     renderRegioes(d);
@@ -1619,7 +1794,7 @@ $("#mapa").addEventListener("click", (ev) => {
   const p = ev.target.closest("path[data-chave]");
   if (p && UFS[p.dataset.chave] && (!ehUF(cfg.recorte) || cfg.recorte === "ZZ")) escolherRecorte(p.dataset.chave);
 });
-for (const sel of ["#tabela-estados", "#tabela-comparacao", "#placar", "#viradas", "#eventos", "#toasts"]) {
+for (const sel of ["#tabela-estados", "#tabela-comparacao", "#placar", "#viradas", "#eventos", "#toasts", "#decisao"]) {
   $(sel).addEventListener("click", (ev) => {
     const el = ev.target.closest("[data-uf]");
     if (el) escolherRecorte(el.dataset.uf);
@@ -1679,7 +1854,29 @@ $("#busca-cidade").addEventListener("input", () => renderCidades(atual()));
 
 // ------------------------------------------------------------- início
 
+// ---- telão: tela cheia só com placar, mapa e chance
+let telaCheia = false;
+function telao(ligar) {
+  document.body.classList.toggle("telao", ligar);
+  if (ligar) document.documentElement.requestFullscreen?.().then(() => (telaCheia = true)).catch(() => {});
+  else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  renderAll();
+}
+$("#btn-telao").addEventListener("click", () => telao(true));
+$("#sair-telao").addEventListener("click", () => telao(false));
+document.addEventListener("fullscreenchange", () => {
+  // saiu da tela cheia pelo Esc: sai do telão também
+  if (!document.fullscreenElement && telaCheia) {
+    telaCheia = false;
+    if (document.body.classList.contains("telao")) telao(false);
+  }
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && document.body.classList.contains("telao")) telao(false);
+});
+
 // o que veio no link compartilhado
+if (params.get("telao") === "1") document.body.classList.add("telao");
 if (["ganha", "vantagem", "apuradas"].includes(params.get("mapa"))) modoEscolhido = params.get("mapa");
 if (["analises", "estados", "cidades"].includes(params.get("aba"))) abrirAba(params.get("aba"));
 

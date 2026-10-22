@@ -23,6 +23,13 @@ Painel para acompanhar a apuração em tempo real com os dados públicos do TSE
 - **Análises**: resumo automático, regiões, projeção com as urnas que faltam, comparação com o
   1º turno de 2026 ou com o mesmo turno de 2022 (mapas lado a lado, viradas e tabela), disputas mais
   apertadas, maiores vantagens e onde faltam mais votos.
+- **Onde a disputa vai ser decidida**: os estados (ou cidades) que mais pesam no que falta apurar,
+  com quanto cada um deve render de vantagem para cada lado, pela mesma conta da chance de virada.
+- **Linha do tempo da chance**: a chance de vitória de cada um, guardada a cada leitura.
+- **Avisos no aparelho** (botão "Ligar avisos"): com o painel em segundo plano, viradas, mudanças de
+  favorito, chance passando de 90%, marcos da apuração e estados que terminaram chegam como
+  notificação (`public/sw.js`). No iPhone, só com o painel adicionado à tela inicial.
+- **Telão** (botão "Telão" ou `?telao=1`): tela cheia só com placar, chance e mapa, em letras grandes.
 - **Compartilhar**: link que abre no mesmo turno, cargo, recorte, modo do mapa e aba.
 - **Estados** e **Cidades** em tabelas com ordenação e busca.
 - Atualiza sozinho a cada 30 s. Os dados ficam em cache por turno e cargo, e as cidades só são

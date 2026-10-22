@@ -45,8 +45,10 @@ export const ERRO = PERFIS.presidente;
  *   do país (ex.: todos os estados, quando o recorte é um só)
  * @param {number} o.frac fração apurada do recorte (0 a 1)
  * @param {object} [o.erro] perfil de margem de erro (PERFIS.presidente ou PERFIS.governador)
- * @returns {{probA:number, media:number, baixo:number, alto:number, restante:number}}
- *   probA = chance de A terminar à frente; margens (A − B) em p.p. dos votos de A+B no fim
+ * @returns {{probA:number, media:number, baixo:number, alto:number, restante:number, porEstado:Array}}
+ *   probA = chance de A terminar à frente; margens (A − B) em p.p. dos votos de A+B no fim;
+ *   porEstado[i] (na ordem de o.estados) = { resto, saldo }: votos que faltam e quanto A deve
+ *   ganhar (ou perder, se negativo) de vantagem ali, além de cidades[j] = { resto, saldo }
  */
 export function chancePorCidades({ a, b, estados, paraMudanca = estados, frac, N = 4000, semente = 1, erro = ERRO }) {
   const resumo = (e) => {
@@ -79,17 +81,25 @@ export function chancePorCidades({ a, b, estados, paraMudanca = estados, frac, N
   const razaoPais = peso ? sr / peso : 1;
 
   const itens = [];
-  for (const e of estados.map(resumo)) {
-    if (e.restante1t <= 0) continue;
+  const porEstado = estados.map((original, i) => {
+    const e = resumo(original);
+    if (e.restante1t <= 0) return { resto: 0, saldo: 0, cidades: original.cidades.map(() => ({ resto: 0, saldo: 0 })) };
     const w = e.mudanca === null ? 0 : e.apurado / (e.apurado + erro.puxa || 1);
     const mudanca = w * (e.mudanca ?? 0) + (1 - w) * mudancaPais;
     const razao = w * (e.razao ?? razaoPais) + (1 - w) * razaoPais;
-    itens.push({
+    const it = {
       resto: e.restante1t * razao,
       media: limitar(e.pResto + mudanca),
       desvio: erro.estado * Math.sqrt(erro.encolheEstado / (erro.encolheEstado + e.apurado)),
+    };
+    itens.push(it);
+    // o mesmo raciocínio, cidade a cidade, para dizer onde estão os votos que decidem
+    const cidades = original.cidades.map((c) => {
+      const resto = (1 - Math.min(1, Math.max(0, c.f))) * c.v * razao;
+      return { resto, saldo: resto * (2 * limitar(c.p + mudanca) - 1) };
     });
-  }
+    return { resto: it.resto, saldo: it.resto * (2 * it.media - 1), cidades };
+  });
 
   const desvioPais = erro.pais * Math.sqrt(erro.encolhePais / (erro.encolhePais + apuradoPais)) + erro.piso;
   const rnd = aleatorio(semente);
@@ -113,5 +123,6 @@ export function chancePorCidades({ a, b, estados, paraMudanca = estados, frac, N
     baixo: pp(margens[Math.floor(N * 0.05)]),
     alto: pp(margens[Math.floor(N * 0.95)]),
     restante,
+    porEstado,
   };
 }

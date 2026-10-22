@@ -344,3 +344,43 @@ tr.sel { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 .chance-barra { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; }
 .chance-barra i { display: block; height: 100%; border-radius: 0 4px 4px 0; transition: width .6s ease; }
 .chance-sub { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* ---------- onde a disputa vai ser decidida */
+.sub-titulo { margin: 18px 0 6px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.decisao { margin: 0; padding-left: 24px; display: grid; gap: 10px; }
+.decisao li[data-uf] { cursor: pointer; }
+.decisao .linha { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.decisao .linha.sub { font-size: 12px; color: var(--text-2); }
+.decisao .saldo { height: 8px; margin: 4px 0 2px; background: var(--track); border-radius: 4px; overflow: hidden; }
+.decisao .saldo i { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.decisao-total { margin: 14px 0 0; font-size: 14px; }
+.decisao-total b { font-variant-numeric: tabular-nums; }
+
+/* ---------- telão: só placar, mapa e chance, em letras grandes */
+.sair-telao { display: none; }
+body.telao .controles, body.telao .tabs, body.telao .painel, body.telao .rodape, body.telao #voltar { display: none !important; }
+body.telao .topo { position: static; }
+body.telao .topo-in, body.telao .progresso-in, body.telao main { max-width: none; }
+body.telao .marca h1 { font-size: 26px; }
+body.telao .status { font-size: 15px; }
+body.telao .pg-valor { font-size: 30px; }
+body.telao .pg-barra { height: 14px; }
+body.telao .hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
+body.telao .card-head h2 { font-size: 34px; }
+body.telao .duelo .nome { font-size: 22px; }
+body.telao .duelo .grande { font-size: clamp(44px, 4.6vw, 92px); }
+body.telao .duelo .lado { overflow: hidden; }
+body.telao .duelo .nome { flex-wrap: wrap; }
+body.telao .duelo .votos, body.telao .dif { font-size: 18px; }
+body.telao .split { height: 36px; }
+body.telao .chance-num { font-size: 34px; }
+body.telao .chance-topo, body.telao .chance-sub { font-size: 16px; }
+body.telao .mapa svg { max-height: 74vh; }
+body.telao .cand .pct { font-size: 28px; }
+body.telao .cand .nome { font-size: 18px; }
+body.telao .sair-telao {
+  display: block; position: fixed; z-index: 70; top: calc(12px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+  height: 34px; padding: 0 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); border-radius: 8px; font-size: 13px; opacity: .6;
+}
+body.telao .sair-telao:hover, body.telao .sair-telao:focus-visible { opacity: 1; }
+@media (max-width: 960px) { body.telao .hero { grid-template-columns: minmax(0, 1fr); } }

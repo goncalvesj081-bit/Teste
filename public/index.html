@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=13">
+  <link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
   <header class="topo">
@@ -29,6 +29,8 @@
         <select id="recorte" class="recorte"></select>
         <button type="button" class="icone" id="btn-atualizar" title="Atualizar agora" aria-label="Atualizar agora">↻</button>
         <button type="button" class="botao" id="btn-compartilhar" title="Copiar o link do que está na tela">Compartilhar</button>
+        <button type="button" class="botao" id="btn-avisos" aria-pressed="false" hidden>Ligar avisos</button>
+        <button type="button" class="botao" id="btn-telao" title="Tela cheia só com placar, mapa e chance">Telão</button>
       </div>
     </div>
     <div class="progresso" aria-live="polite">
@@ -85,12 +87,22 @@
         <h3>Resumo</h3>
         <ul class="insights" id="resumo"></ul>
       </div>
+      <div class="card" id="bloco-decisao" hidden>
+        <h3>Onde a disputa vai ser decidida</h3>
+        <p class="nota" id="decisao-nota"></p>
+        <ol class="decisao" id="decisao"></ol>
+        <p class="decisao-total" id="decisao-total"></p>
+      </div>
       <div class="card" id="bloco-linha" hidden>
         <div class="card-head">
           <h3>Linha do tempo da apuração</h3>
           <span class="nota-inline" id="linha-legenda"></span>
         </div>
         <div id="linha"></div>
+        <div id="linha-chance" hidden>
+          <h4 class="sub-titulo">Chance de vitória ao longo da apuração</h4>
+          <div class="grafico"></div>
+        </div>
       </div>
       <div class="card" id="bloco-eventos" hidden>
         <h3>Acontecimentos</h3>
@@ -186,6 +198,7 @@
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
-  <script type="module" src="app.js?v=13"></script>
+  <button type="button" class="sair-telao" id="sair-telao">Sair do telão</button>
+  <script type="module" src="app.js?v=14"></script>
 </body>
 </html>
