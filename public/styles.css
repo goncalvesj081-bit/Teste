@@ -384,3 +384,27 @@ body.telao .sair-telao {
 }
 body.telao .sair-telao:hover, body.telao .sair-telao:focus-visible { opacity: 1; }
 @media (max-width: 960px) { body.telao .hero { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- página de acessos (admin.html) */
+.admin .entrar { max-width: 420px; display: grid; gap: 12px; }
+.admin .entrar h2 { font-size: 20px; }
+.admin .campo { display: grid; gap: 6px; font-size: 13px; color: var(--text-2); }
+.admin .campo input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; min-height: 38px; }
+.botao.primario { background: var(--accent); border-color: var(--accent); color: #fff; height: 38px; }
+.link-botao { display: inline-flex; align-items: center; text-decoration: none; }
+.kpis-admin { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.kpis-admin .kpi { display: grid; gap: 4px; }
+.kpis-admin .rot { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.kpis-admin b { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.1; }
+.kpis-admin .destaque b { font-size: 44px; color: var(--accent); }
+.kpis-admin small { font-size: 12px; color: var(--text-3); }
+#numeros { display: grid; gap: 16px; }
+#numeros[hidden] { display: none !important; }
+.grafico-acessos .area { fill: color-mix(in srgb, var(--accent) 16%, transparent); }
+.grafico-acessos .serie { stroke: var(--accent); }
+.grafico-acessos .ponto { fill: var(--accent); }
+.vendo { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.vendo .linha { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.vendo .barra { height: 8px; margin-top: 4px; background: var(--track); border-radius: 4px; overflow: hidden; }
+.vendo .barra i { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+.vendo .vazio { color: var(--text-2); font-size: 13px; }

@@ -100,6 +100,23 @@ comparecimento, `e.a` abstenção, `v.vb` brancos, `v.tvn` nulos, `v.vv` válido
 com as cidades, ligadas ao resultado pelo código IBGE (`cdi` na lista de cidades do TSE). Foram gerados
 com `scripts/gerar-mapas.js` a partir das malhas municipais do IBGE (pacote npm `ibge-cidades-com-poligonos`).
 
+## Contagem de acessos (página de admin)
+
+`admin.html` mostra quantas pessoas estão com o painel aberto agora, nos últimos 15 minutos, hoje e no
+total, por aparelho, o que estão vendo e um gráfico das últimas 24 horas. A contagem é anônima: cada
+navegador gera um código aleatório (sem nome, e-mail ou localização) e avisa "estou aqui" a cada minuto.
+Os números ficam num projeto do Supabase (plano gratuito basta).
+
+1. Crie um projeto no Supabase.
+2. Em **SQL Editor**, cole `supabase/acessos.sql`, escreva a senha do admin na linha marcada com
+   "SENHA DO ADMIN" e clique em **Run**.
+3. Em **Project Settings → API Keys / Data API**, copie o endereço do projeto e a chave pública
+   ("publishable" ou "anon") para `public/config.js`.
+4. Abra `https://<usuario>.github.io/<repositorio>/admin.html` e entre com a senha.
+
+A chave pública pode ficar no site: o site só consegue registrar acessos; ler os números exige a senha,
+que fica no banco apenas como hash. Para trocar a senha, rode o script de novo com a senha nova.
+
 ## Ensaio geral
 
 `scripts/ensaio-tse-falso.mjs` imita o TSE do 2º turno com uma apuração que anda sozinha e um

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Acessos · Apuração 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="styles.css?v=19">
+</head>
+<body class="admin">
+  <header class="topo">
+    <div class="topo-in">
+      <div class="marca">
+        <h1>Acessos do painel</h1>
+        <span class="status" id="status" data-estado="carregando"><i></i><span id="status-txt">Entre com a senha</span></span>
+      </div>
+      <div class="controles">
+        <a class="botao link-botao" href="./">Abrir o painel</a>
+        <button type="button" class="botao" id="sair" hidden>Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <p class="aviso" id="aviso" hidden></p>
+
+    <form class="card entrar" id="entrar">
+      <h2>Entrar</h2>
+      <p class="nota">Use a senha definida no script do banco (supabase/acessos.sql).</p>
+      <label class="campo" for="senha">Senha
+        <input type="password" id="senha" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="botao primario">Ver os números</button>
+    </form>
+
+    <section id="numeros" hidden>
+      <div class="kpis-admin">
+        <div class="card kpi destaque"><span class="rot">Online agora</span><b id="k-agora">—</b><small>com o painel aberto no último minuto ou dois</small></div>
+        <div class="card kpi"><span class="rot">Últimos 15 minutos</span><b id="k-15">—</b><small>pessoas</small></div>
+        <div class="card kpi"><span class="rot">Hoje</span><b id="k-hoje">—</b><small>pessoas desde 0h (Brasília)</small></div>
+        <div class="card kpi"><span class="rot">Desde o início</span><b id="k-total">—</b><small id="k-visitas">pessoas</small></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h3>Pessoas online nas últimas 24 horas</h3>
+          <span class="nota-inline">a cada 5 minutos</span>
+        </div>
+        <div id="grafico" class="grafico-acessos"></div>
+      </div>
+
+      <div class="duas">
+        <div class="card">
+          <h3>Aparelho de quem está online</h3>
+          <div id="aparelhos"></div>
+        </div>
+        <div class="card">
+          <h3>O que estão vendo agora</h3>
+          <ol class="vendo" id="vendo"></ol>
+        </div>
+      </div>
+      <p class="nota" id="rodape-admin"></p>
+    </section>
+  </main>
+
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <script type="module" src="admin.js?v=19"></script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=17";
 import { chancePorCidades, PERFIS, aleatorio, normal } from "./modelo.js?v=17";
+import { ACESSOS } from "./config.js?v=19";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");
@@ -1885,6 +1886,42 @@ document.addEventListener("fullscreenchange", () => {
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && document.body.classList.contains("telao")) telao(false);
 });
+
+// ---- contagem anônima de acessos (números em admin.html; banco em supabase/acessos.sql)
+
+const contaAcessos = !!(ACESSOS.url && ACESSOS.chave);
+
+/** Código aleatório do navegador: não identifica a pessoa, só evita contar a mesma duas vezes. */
+function idNavegador() {
+  try {
+    let id = localStorage.getItem("acesso-id");
+    if (!id) localStorage.setItem("acesso-id", (id = crypto.randomUUID()));
+    return id;
+  } catch {
+    return (idNavegador.temporario ||= crypto.randomUUID());
+  }
+}
+
+/** Avisa o banco que esta página está aberta (a cada minuto, só com a aba visível). */
+function marcarPresenca() {
+  if (!contaAcessos || document.hidden) return;
+  fetch(`${ACESSOS.url.replace(/\/$/, "")}/rest/v1/rpc/registrar_acesso`, {
+    method: "POST",
+    headers: { apikey: ACESSOS.chave, "content-type": "application/json" },
+    body: JSON.stringify({
+      p_id: idNavegador(),
+      p_aparelho: matchMedia("(pointer: coarse)").matches ? "celular" : "computador",
+      p_vendo: nomeRecorte(cfg.recorte),
+    }),
+    keepalive: true,
+  }).catch(() => {});
+}
+if (contaAcessos) {
+  marcarPresenca();
+  setInterval(marcarPresenca, 60_000);
+  document.addEventListener("visibilitychange", marcarPresenca);
+  $("#rodape-txt").textContent += " Contamos os acessos de forma anônima (sem nome, e-mail ou localização).";
+}
 
 // o que veio no link compartilhado
 if (params.get("telao") === "1") document.body.classList.add("telao");
