@@ -143,10 +143,10 @@ function carregarBase(d) {
     ? d.fonte.base1Turno()
     : fetch(`base/${d.cargo === "0001" ? "presidente" : "governador"}-2026-t1.json`).then((r) => (r.ok ? r.json() : null))
   )
-    .then(async (b) => {
+    .then((b) => {
       d.base = b;
-      // nomes das cidades para a lista de onde a disputa vai ser decidida
-      d.lista = await d.fonte.listaMunicipios().catch(() => null);
+      // nomes das cidades para a lista de onde a disputa vai ser decidida (sem segurar a tela)
+      d.fonte.listaMunicipios().then((l) => (d.lista = l)).catch(() => {});
     })
     .catch(() => (d.basePromessa = null));
   return d.basePromessa;
