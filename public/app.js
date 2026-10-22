@@ -1645,6 +1645,172 @@ function renderCidades(d) {
     (rows.length > visiveis.length ? ` · mostrando ${visiveis.length} de ${fmt.format(rows.length)} (use a busca)` : "");
 }
 
+// ------------------------------------------------------------- pesquisas
+
+// Pesquisas de 2º turno para presidente, reunidas em pesquisas.json (com a fonte de cada uma).
+let pesquisas = null;
+const carregarPesquisas = () =>
+  (pesquisas ||= fetch("pesquisas.json?v=20", { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))));
+
+const dataBR = (iso) => (iso ? new Date(iso + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "—");
+const fimCampo = (p) => (p.campo ? p.campo[1] : p.divulgacao);
+
+/** Parcela de cada um nos votos válidos: a divulgada ou, se só há votos totais, a conta entre os dois. */
+function validosDe(p) {
+  if (p.validos) return { 22: p.validos["22"], 13: p.validos["13"], conta: false };
+  const a = p.totais["22"], b = p.totais["13"];
+  return { 22: (a / (a + b)) * 100, 13: (b / (a + b)) * 100, conta: true };
+}
+
+/** Média: a pesquisa mais recente de cada instituto, entre as dos últimos 10 dias. */
+function mediaPesquisas(lista) {
+  const depois = lista.filter((p) => !p.antesDo1Turno);
+  if (!depois.length) return null;
+  const ultima = depois.map(fimCampo).sort().at(-1);
+  const limite = new Date(new Date(ultima) - 10 * 86400000).toISOString().slice(0, 10);
+  const porInstituto = new Map();
+  for (const p of [...depois].sort((x, y) => fimCampo(y).localeCompare(fimCampo(x)))) {
+    if (fimCampo(p) >= limite && !porInstituto.has(p.instituto)) porInstituto.set(p.instituto, p);
+  }
+  const usadas = [...porInstituto.values()];
+  const m = (n) => usadas.reduce((t, p) => t + validosDe(p)[n], 0) / usadas.length;
+  return { 22: m("22"), 13: m("13"), usadas, ultima };
+}
+
+const candPesquisa = (d, n, nomes) => d.brasil?.candidatos.find((c) => c.numero === n) || { numero: n, nome: nomes[n], partido: n === "22" ? "PL" : "PT" };
+
+async function renderPesquisas(d) {
+  let dados;
+  try { dados = await carregarPesquisas(); } catch {
+    $("#pesq-aviso").textContent = "Não foi possível carregar as pesquisas agora.";
+    $("#pesq-aviso").hidden = false;
+    return;
+  }
+  const lista = [...dados.pesquisas].sort((x, y) => fimCampo(y).localeCompare(fimCampo(x)));
+  const F = candPesquisa(d, "22", dados.candidatos), L = candPesquisa(d, "13", dados.candidatos);
+  const aConferir = lista.filter((p) => !p.conferido).length;
+  $("#pesq-aviso").hidden = !aConferir && !governador();
+  $("#pesq-aviso").textContent = governador()
+    ? "As pesquisas reunidas aqui são do 2º turno para presidente."
+    : `${aConferir} das ${lista.length} pesquisas ainda estão marcadas "a conferir": os números vieram de reportagens e ainda não foram conferidos na divulgação original do instituto. Confira sempre pelo link da fonte.`;
+  $("#pesq-atualizado").textContent = `lista atualizada em ${dataBR(dados.atualizado)}`;
+
+  // média
+  const media = mediaPesquisas(lista);
+  const [x, y] = [F, L].sort(porSlot);
+  $("#pesq-media").innerHTML = media
+    ? `<div class="pesq-media">${[x, y].map((c, i) => `<div class="lado ${i ? "dir" : ""}">
+        <div class="nome">${i ? "" : sw(c)}${esc(c.nome)}${i ? sw(c) : ""}</div>
+        <div class="grande">${pctFmt.format(media[c.numero])}%</div>
+        <div class="partido">dos votos válidos</div></div>`).join("")}</div>`
+    : `<p class="muted">Sem pesquisas depois do 1º turno ainda.</p>`;
+  $("#pesq-media-nota").textContent = media
+    ? `Média da pesquisa mais recente de cada instituto nos 10 dias até ${dataBR(media.ultima)}: ${media.usadas.map((p) => p.instituto).join(", ")}. ` +
+      `Quando a pesquisa só divulgou votos totais, os válidos são a conta entre os dois candidatos.`
+    : "";
+
+  // quem chegou mais perto: compara com o resultado (ou com a projeção, durante a apuração)
+  // só com a apuração de verdade (na simulação e no replay os candidatos são outros)
+  const r = cfg.fonte === "tse" && d.turno === "2" && cfg.cargo === "0001" ? d.brasil : null;
+  let alvo = null, rotulo = "";
+  if (r?.validos && completo(r)) { alvo = pct(votosDe(r, "22"), r.validos); rotulo = "o resultado final"; }
+  else if (r?.validos) {
+    const cv = chanceVirada(d, "");
+    if (cv) { const mA = cv.media / 2 + 50; alvo = cv.A.numero === "22" ? mA : 100 - mA; rotulo = "a projeção atual da apuração (muda até o fim)"; }
+  }
+  $("#pesq-acerto-card").hidden = alvo === null || !media;
+  if (alvo !== null && media) {
+    const ultimas = new Map();
+    for (const p of lista) if (!p.antesDo1Turno && !ultimas.has(p.instituto)) ultimas.set(p.instituto, p);
+    const erros = [...ultimas.values()].map((p) => ({ p, erro: Math.abs(validosDe(p)["22"] - alvo) * 2 })).sort((a, b) => a.erro - b.erro);
+    $("#pesq-acerto-titulo").textContent = completo(r) ? "Quem chegou mais perto" : "Quem está chegando mais perto";
+    $("#pesq-acerto-nota").textContent = `Última pesquisa de cada instituto comparada com ${rotulo}: Flávio ${pctFmt.format(alvo)}% × Lula ${pctFmt.format(100 - alvo)}% dos válidos. O erro é na diferença entre os dois, em pontos.`;
+    $("#pesq-acerto").innerHTML = erros
+      .map(({ p, erro }) => `<li><div class="linha"><b>${esc(p.instituto)}</b><span>erro de ${ppFmt.format(erro)} p.p. na diferença</span></div>
+        <div class="linha sub"><span>${dataBR(fimCampo(p))}: Flávio ${pctFmt.format(validosDe(p)["22"])}% × Lula ${pctFmt.format(validosDe(p)["13"])}%</span></div></li>`)
+      .join("");
+  }
+
+  // gráfico: válidos de cada pesquisa ao longo do tempo
+  renderGraficoPesquisas(lista, F, L);
+  $("#pesq-legenda").innerHTML = [x, y].map((c) => `<span>${sw(c)} ${esc(nomeCurto(c))}</span>`).join("") + `<span class="muted">% dos válidos</span>`;
+
+  // tabela
+  $("#pesq-nota").textContent = dados.nota;
+  $("#tabela-pesquisas").innerHTML =
+    `<thead><tr><th>Divulgação</th><th>Instituto</th><th>Campo</th><th class="r">Entrevistas</th><th class="r">Margem</th>
+      <th class="r">${sw(F)} Flávio</th><th class="r">${sw(L)} Lula</th><th class="r">Diferença</th><th>Registro TSE</th><th>Fonte</th></tr></thead><tbody>` +
+    lista
+      .map((p) => {
+        const v = validosDe(p);
+        const dif = v["22"] - v["13"];
+        const lider = dif >= 0 ? F : L;
+        return `<tr>
+          <td>${dataBR(p.divulgacao)}${p.antesDo1Turno ? '<small>antes do 1º turno</small>' : ""}</td>
+          <td><b>${esc(p.instituto)}</b>${p.contratante ? `<small>${esc(p.contratante)}</small>` : ""}${p.conferido ? "" : ' <span class="tag conferir">a conferir</span>'}</td>
+          <td>${p.campo ? `${dataBR(p.campo[0])} a ${dataBR(p.campo[1])}` : "—"}</td>
+          <td class="r">${p.amostra ? fmt.format(p.amostra) : "—"}</td>
+          <td class="r">${p.margem != null ? `±${ppFmt.format(p.margem)}` : "—"}</td>
+          <td class="r"><b>${pctFmt.format(v["22"])}%</b><small>${p.totais ? `${ppFmt.format(p.totais["22"])}% dos totais` : ""}</small></td>
+          <td class="r"><b>${pctFmt.format(v["13"])}%</b><small>${p.totais ? `${ppFmt.format(p.totais["13"])}% dos totais` : ""}</small></td>
+          <td class="r"><span class="cel-cand">${sw(lider)} +${ppFmt.format(Math.abs(dif))}</span></td>
+          <td>${p.registro ? esc(p.registro) : "—"}</td>
+          <td><a href="${esc(p.fonte)}" target="_blank" rel="noopener">abrir</a></td>
+        </tr>`;
+      })
+      .join("") +
+    "</tbody>";
+}
+
+function renderGraficoPesquisas(lista, F, L) {
+  const el = $("#pesq-grafico");
+  const dias = (iso) => new Date(iso + "T12:00:00").getTime() / 86400000;
+  const pts = lista.map((p) => ({ p, x: dias(fimCampo(p)), v: validosDe(p) }));
+  const ini = Math.min(...pts.map((q) => q.x), dias("2026-10-01")) - 1, fim = dias("2026-10-25") + 0.5;
+  const W = Math.max(300, el.clientWidth || 700), H = W < 520 ? 200 : 240;
+  const m = { l: 40, r: 16, t: 14, b: 28 };
+  const ys = pts.flatMap((q) => [q.v["22"], q.v["13"]]);
+  const y0 = Math.floor(Math.min(45, ...ys) - 1), y1 = Math.ceil(Math.max(55, ...ys) + 1);
+  const X = (x) => m.l + ((x - ini) / (fim - ini)) * (W - m.l - m.r);
+  const Y = (y) => m.t + (1 - (y - y0) / (y1 - y0)) * (H - m.t - m.b);
+  let grade = "";
+  for (let y = Math.ceil(y0); y <= y1; y += 2) grade += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(y)}" y2="${Y(y)}"></line><text x="${m.l - 6}" y="${Y(y) + 4}" text-anchor="end">${y}%</text>`;
+  const marcos = [["2026-10-04", "1º turno"], ["2026-10-25", "2º turno"]]
+    .map(([d, t]) => `<line class="marco" x1="${X(dias(d))}" x2="${X(dias(d))}" y1="${m.t}" y2="${H - m.b}"></line><text class="marco-txt" x="${X(dias(d)) - 4}" y="${m.t + 10}" text-anchor="end">${t}</text>`)
+    .join("");
+  const eixo = [];
+  for (let x = Math.ceil(ini); x <= fim; x += W < 520 ? 7 : 3) eixo.push(`<text x="${X(x)}" y="${H - 8}" text-anchor="middle">${new Date(x * 86400000).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" })}</text>`);
+  // linha da média móvel (pesquisas dos 10 dias anteriores a cada ponto) para cada candidato
+  const ordem = [...pts].sort((a, b) => a.x - b.x);
+  const linha = (n) => ordem.map((q, i) => {
+    const janela = ordem.filter((o) => o.x <= q.x && o.x > q.x - 10);
+    const y = janela.reduce((t, o) => t + o.v[n], 0) / janela.length;
+    return `${i ? "L" : "M"}${X(q.x).toFixed(1)},${Y(y).toFixed(1)}`;
+  }).join("");
+  const pontos = pts.flatMap((q, i) => [F, L].map((c) => `<circle class="pt" data-i="${i}" cx="${X(q.x)}" cy="${Y(q.v[c.numero])}" r="5" style="fill:${cor(c.numero)}"></circle>`)).join("");
+  el.innerHTML = `<svg class="linha-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Pesquisas de 2º turno ao longo do tempo">
+    <g class="grade">${grade}</g>${marcos}${eixo.join("")}
+    <line class="meio-linha" x1="${m.l}" x2="${W - m.r}" y1="${Y(50)}" y2="${Y(50)}"></line>
+    ${ordem.length > 1 ? [F, L].map((c) => `<path class="serie" d="${linha(c.numero)}" style="stroke:${cor(c.numero)};opacity:.5"></path>`).join("") : ""}
+    ${pontos}
+  </svg>`;
+  // tooltip de cada ponto
+  el.querySelectorAll("circle[data-i]").forEach((c) => {
+    const { p, v } = pts[Number(c.dataset.i)];
+    c.addEventListener("pointerenter", () => {
+      tip.innerHTML = `<strong>${esc(p.instituto)} · ${dataBR(fimCampo(p))}</strong>` +
+        `<div><span>${sw(F)} Flávio</span><b>${pctFmt.format(v["22"])}%</b></div><div><span>${sw(L)} Lula</span><b>${pctFmt.format(v["13"])}%</b></div>` +
+        `<div class="t-sub"><span>${v.conta ? "válidos calculados dos totais" : "votos válidos"}</span></div>`;
+      tip.hidden = false;
+    });
+    c.addEventListener("pointermove", (ev) => {
+      tip.style.left = Math.max(8, Math.min(ev.clientX + 14, innerWidth - tip.offsetWidth - 8)) + "px";
+      tip.style.top = Math.max(8, Math.min(ev.clientY + 14, innerHeight - tip.offsetHeight - 8)) + "px";
+    });
+    c.addEventListener("pointerleave", () => (tip.hidden = true));
+  });
+}
+
 // ------------------------------------------------------------- render geral
 
 let aba = "analises";
@@ -1665,6 +1831,8 @@ function renderAll() {
     renderProjecao(d, d1);
     renderComparacao(d);
     renderRankings(d, d1);
+  } else if (aba === "pesquisas") {
+    renderPesquisas(d);
   } else if (aba === "estados") {
     renderEstados(d);
   } else {
@@ -1926,7 +2094,7 @@ if (contaAcessos) {
 // o que veio no link compartilhado
 if (params.get("telao") === "1") document.body.classList.add("telao");
 if (["ganha", "vantagem", "apuradas"].includes(params.get("mapa"))) modoEscolhido = params.get("mapa");
-if (["analises", "estados", "cidades"].includes(params.get("aba"))) abrirAba(params.get("aba"));
+if (["analises", "estados", "cidades", "pesquisas"].includes(params.get("aba"))) abrirAba(params.get("aba"));
 
 await detectarProxy();
 atualizar();

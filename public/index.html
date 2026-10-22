@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=19">
+  <link rel="stylesheet" href="styles.css?v=21">
 </head>
 <body>
   <header class="topo">
@@ -80,6 +80,7 @@
       <button role="tab" data-tab="analises" aria-selected="true">Análises</button>
       <button role="tab" data-tab="estados" aria-selected="false">Estados</button>
       <button role="tab" data-tab="cidades" aria-selected="false">Cidades</button>
+      <button role="tab" data-tab="pesquisas" aria-selected="false">Pesquisas</button>
     </nav>
 
     <section class="painel" id="tab-analises">
@@ -162,6 +163,35 @@
       </div>
     </section>
 
+    <section class="painel" id="tab-pesquisas" hidden>
+      <p class="aviso" id="pesq-aviso" hidden></p>
+      <div class="card" id="pesq-media-card">
+        <div class="card-head">
+          <h3>Média das pesquisas · 2º turno para presidente</h3>
+          <span class="nota-inline" id="pesq-atualizado"></span>
+        </div>
+        <div id="pesq-media"></div>
+        <p class="nota" id="pesq-media-nota"></p>
+      </div>
+      <div class="card" id="pesq-acerto-card" hidden>
+        <h3 id="pesq-acerto-titulo">Quem chegou mais perto</h3>
+        <p class="nota" id="pesq-acerto-nota"></p>
+        <ol class="ranking" id="pesq-acerto"></ol>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3>Pesquisas ao longo do tempo</h3>
+          <span class="nota-inline" id="pesq-legenda"></span>
+        </div>
+        <div id="pesq-grafico" class="pesq-grafico"></div>
+      </div>
+      <div class="card">
+        <h3>Todas as pesquisas reunidas</h3>
+        <p class="nota" id="pesq-nota"></p>
+        <div class="table-wrap"><table id="tabela-pesquisas"></table></div>
+      </div>
+    </section>
+
     <section class="painel" id="tab-cidades" hidden>
       <div class="card">
         <div class="card-head">
@@ -199,6 +229,6 @@
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
   <button type="button" class="sair-telao" id="sair-telao">Sair do telão</button>
-  <script type="module" src="app.js?v=19"></script>
+  <script type="module" src="app.js?v=21"></script>
 </body>
 </html>

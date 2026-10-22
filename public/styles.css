@@ -408,3 +408,17 @@ body.telao .sair-telao:hover, body.telao .sair-telao:focus-visible { opacity: 1;
 .vendo .barra { height: 8px; margin-top: 4px; background: var(--track); border-radius: 4px; overflow: hidden; }
 .vendo .barra i { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
 .vendo .vazio { color: var(--text-2); font-size: 13px; }
+
+/* ---------- pesquisas */
+.pesq-media { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.pesq-media .lado { display: grid; gap: 2px; }
+.pesq-media .lado.dir { text-align: right; justify-items: end; }
+.pesq-media .nome { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+#pesq-media-nota { margin-top: 14px; }
+.pesq-media .grande { font-size: clamp(30px, 4.5vw, 44px); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.1; }
+.pesq-grafico .pt { stroke: var(--surface); stroke-width: 1.5; }
+.pesq-grafico .marco { stroke: var(--text-3); stroke-dasharray: 3 3; }
+.pesq-grafico .marco-txt { fill: var(--text-3); font-size: 11px; }
+.tag.conferir { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, var(--border)); }
+#tabela-pesquisas a { color: var(--accent); }
+#tabela-pesquisas small { color: var(--text-3); display: block; }

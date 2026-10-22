@@ -100,6 +100,14 @@ comparecimento, `e.a` abstenção, `v.vb` brancos, `v.tvn` nulos, `v.vv` válido
 com as cidades, ligadas ao resultado pelo código IBGE (`cdi` na lista de cidades do TSE). Foram gerados
 com `scripts/gerar-mapas.js` a partir das malhas municipais do IBGE (pacote npm `ibge-cidades-com-poligonos`).
 
+## Pesquisas
+
+A aba **Pesquisas** mostra a média das pesquisas de 2º turno para presidente (a mais recente de cada
+instituto nos últimos 10 dias, em votos válidos), um gráfico ao longo do tempo, a tabela com todas as
+pesquisas reunidas e, durante e depois da apuração, qual instituto chegou mais perto. Os dados ficam em
+`public/pesquisas.json`, cada pesquisa com o link da fonte; `"conferido": false` aparece como "a conferir"
+até o número ser conferido na divulgação original. Para incluir uma pesquisa, acrescente um item no arquivo.
+
 ## Contagem de acessos (página de admin)
 
 `admin.html` mostra quantas pessoas estão com o painel aberto agora, nos últimos 15 minutos, hoje e no

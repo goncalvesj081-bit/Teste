@@ -1,0 +1,106 @@
+{
+  "atualizado": "2026-10-22",
+  "nota": "Pesquisas de 2º turno para presidente (Flávio Bolsonaro × Lula), reunidas de reportagens, com o link de cada fonte. As marcadas \"a conferir\" ainda não foram conferidas na divulgação original do instituto.",
+  "candidatos": {
+    "22": "FLAVIO BOLSONARO",
+    "13": "LULA"
+  },
+  "pesquisas": [
+    {
+      "instituto": "AtlasIntel",
+      "contratante": "Bloomberg",
+      "campo": [
+        "2026-10-13",
+        "2026-10-18"
+      ],
+      "divulgacao": "2026-10-19",
+      "amostra": 4998,
+      "margem": 1,
+      "registro": "BR-02418/2026",
+      "totais": {
+        "22": 49.8,
+        "13": 47.6
+      },
+      "validos": {
+        "22": 51.1,
+        "13": 48.9
+      },
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/atlas-flavio-tem-511-dos-votos-validos-no-2o-turno-lula-489/",
+      "conferido": false
+    },
+    {
+      "instituto": "Quaest",
+      "contratante": "TV Globo",
+      "campo": [
+        "2026-10-17",
+        "2026-10-20"
+      ],
+      "divulgacao": "2026-10-21",
+      "amostra": 2154,
+      "margem": null,
+      "registro": null,
+      "totais": {
+        "22": 45,
+        "13": 44
+      },
+      "validos": null,
+      "fonte": "https://www.gazetadopovo.com.br/eleicoes/2026/pesquisa-eleitoral-2026/quaest-presidente-outubro-2026-segundo-turno-2/",
+      "conferido": false
+    },
+    {
+      "instituto": "Quaest",
+      "contratante": null,
+      "campo": null,
+      "divulgacao": "2026-10-14",
+      "amostra": null,
+      "margem": 2,
+      "registro": null,
+      "totais": {
+        "22": 46,
+        "13": 44
+      },
+      "validos": null,
+      "fonte": "https://forbes.com.br/geral/2026/10/quaest-no-2o-turno-flavio-bolsonaro-tem-46-e-lula-44/",
+      "conferido": false
+    },
+    {
+      "instituto": "Datafolha",
+      "contratante": null,
+      "campo": null,
+      "divulgacao": "2026-10-08",
+      "amostra": null,
+      "margem": null,
+      "registro": null,
+      "totais": {
+        "22": 49,
+        "13": 45
+      },
+      "validos": {
+        "22": 52,
+        "13": 48
+      },
+      "fonte": "https://www.brasildefato.com.br/2026/10/08/datafolha-segundo-turno-flavio-bolsonaro-49-lula-45/",
+      "conferido": false
+    },
+    {
+      "instituto": "Quaest",
+      "contratante": null,
+      "campo": [
+        "2026-10-02",
+        "2026-10-03"
+      ],
+      "divulgacao": "2026-10-03",
+      "amostra": 3702,
+      "margem": null,
+      "registro": null,
+      "totais": {
+        "22": 44,
+        "13": 42
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/quaest-2-turno/",
+      "conferido": false,
+      "antesDo1Turno": true
+    }
+  ]
+}
