@@ -100,6 +100,12 @@ comparecimento, `e.a` abstenção, `v.vb` brancos, `v.tvn` nulos, `v.vv` válido
 com as cidades, ligadas ao resultado pelo código IBGE (`cdi` na lista de cidades do TSE). Foram gerados
 com `scripts/gerar-mapas.js` a partir das malhas municipais do IBGE (pacote npm `ibge-cidades-com-poligonos`).
 
+## Ensaio geral
+
+`scripts/ensaio-tse-falso.mjs` imita o TSE do 2º turno com uma apuração que anda sozinha e um
+resultado escolhido de antemão (instruções no topo do arquivo). Serve para conferir o painel inteiro,
+pelo mesmo caminho de domingo, e ver se a chance de virada chega ao resultado certo.
+
 ## Referência do 1º turno de 2026
 
 `public/base/presidente-2026-t1.json` e `governador-2026-t1.json` têm, por cidade, as seções, os votos
