@@ -7,6 +7,9 @@ const pctFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximu
 const ppFmt = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const pct = (a, b) => (b ? (a / b) * 100 : 0);
 const pctStr = (a, b) => pctFmt.format(pct(a, b)) + "%";
+// urnas apuradas: corta em vez de arredondar, para só mostrar 100% quando todas foram apuradas
+const pctUrnasNum = (a, b) => (b ? Math.floor((a / b) * 10000) / 100 : 0);
+const pctUrnas = (a, b) => pctFmt.format(pctUrnasNum(a, b)) + "%";
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const delta = (d) => `<span class="delta">${d >= 0.05 ? "▲ +" : d <= -0.05 ? "▼ −" : ""}${ppFmt.format(Math.abs(d))} p.p.</span>`;
 const hora = (d) => d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -331,7 +334,7 @@ const votosDe = (r, numero) => r?.candidatos.find((x) => x.numero === numero)?.v
 const margem = (r) => (r?.validos ? pct((r.candidatos[0]?.votos || 0) - (r.candidatos[1]?.votos || 0), r.validos) : 0);
 
 function progress(r) {
-  const p = pct(r.apuradas, r.secoes);
+  const p = pctUrnasNum(r.apuradas, r.secoes);
   return `<div class="progress-cell"><div class="progress"><i style="width:${p}%"></i></div><span class="r">${pctFmt.format(p)}%</span></div>`;
 }
 
@@ -578,7 +581,7 @@ document.addEventListener("pointermove", (ev) => {
     .join("");
   tip.innerHTML =
     `<strong>${esc(titulo)}</strong>${linhas}` +
-    `<div class="t-sub"><span>Urnas apuradas</span><span>${pctStr(r.apuradas, r.secoes)}</span></div>`;
+    `<div class="t-sub"><span>Urnas apuradas</span><span>${pctUrnas(r.apuradas, r.secoes)}</span></div>`;
   tip.hidden = false;
   const x = Math.min(ev.clientX + 14, innerWidth - tip.offsetWidth - 8);
   const y = Math.min(ev.clientY + 14, innerHeight - tip.offsetHeight - 8);
@@ -823,7 +826,7 @@ function renderTopo(d) {
   status.dataset.estado = estado;
   $("#status-txt").textContent = txt;
 
-  const p = r ? pct(r.apuradas, r.secoes) : 0;
+  const p = r ? pctUrnasNum(r.apuradas, r.secoes) : 0;
   $("#pg-valor").textContent = r ? pctFmt.format(p) + "%" : "—";
   $("#pg-fill").style.width = p + "%";
   $("#pg-sub").textContent = r
@@ -931,7 +934,7 @@ function renderPlacarGovernadores(d, el) {
         const [a] = r.candidatos;
         return `<div class="cand pequeno" data-uf="${uf}" style="cursor:pointer">
           <div class="nome"><b>${uf}</b><span class="txt">${a && r.validos ? `${sw(a)} ${esc(a.nome)} <span class="partido">${esc(a.partido)}</span>` : `<span class="muted">${esc(UFS[uf][0])}</span>`}</span></div>
-          <div class="pct">${a && r.validos ? pctStr(a.votos, r.validos) : pctStr(r.apuradas, r.secoes) + " apurado"}</div>
+          <div class="pct">${a && r.validos ? pctStr(a.votos, r.validos) : pctUrnas(r.apuradas, r.secoes) + " apurado"}</div>
           <div class="bar"><i style="width:${pct(r.apuradas, r.secoes)}%;background:var(--progress)"></i></div>
         </div>`;
       })
@@ -1103,7 +1106,7 @@ function renderResumo(d, d1) {
   }
   const fim = completo(r);
   if (!r.apuradas) itens.push("A apuração ainda não começou aqui.");
-  else itens.push(`<b>${pctStr(r.apuradas, r.secoes)}</b> das urnas apuradas (${fmt.format(r.apuradas)} de ${fmt.format(r.secoes)} seções).`);
+  else itens.push(`<b>${pctUrnas(r.apuradas, r.secoes)}</b> das urnas apuradas (${fmt.format(r.apuradas)} de ${fmt.format(r.secoes)} seções).`);
 
   const [a, b] = r.candidatos;
   if (r.apuradas && mostraCandidatos() && a && b) {
@@ -1353,7 +1356,7 @@ function renderRegioes(d) {
       return `<button type="button" class="regiao" data-regiao="${reg}">
         <h4>${reg}</h4>${lider}
         ${!governador() ? stack(r) : ""}
-        <div class="linha"><span>Urnas apuradas</span><b>${pctStr(r.apuradas, r.secoes)}</b></div>
+        <div class="linha"><span>Urnas apuradas</span><b>${pctUrnas(r.apuradas, r.secoes)}</b></div>
         <div class="progress"><i style="width:${pct(r.apuradas, r.secoes)}%"></i></div>
       </button>`;
     })
@@ -1498,7 +1501,7 @@ function itemRanking(u, extra) {
   const [a] = u.r.candidatos;
   return `<li><div class="linha"><b>${esc(u.nome)}</b>
     <span>${a ? `${sw(a)} ${esc(nomeCurto(a))} <b>+${pctFmt.format(margem(u.r))} p.p.</b>` : "—"}</span></div>
-    <div class="linha sub"><span>${pctStr(u.r.apuradas, u.r.secoes)} apurado</span><span>${extra}</span></div>
+    <div class="linha sub"><span>${pctUrnas(u.r.apuradas, u.r.secoes)} apurado</span><span>${extra}</span></div>
     ${stack(u.r)}</li>`;
 }
 
