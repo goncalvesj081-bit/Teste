@@ -1813,30 +1813,41 @@ function renderGraficoPesquisas(lista, F, L) {
 
 // ------------------------------------------------------------- render geral
 
-let aba = "analises";
+// seções do menu lateral: título e o que cada uma desenha
+const SECOES = {
+  geral: "Visão geral",
+  evolucao: "Evolução",
+  estados: "Estados",
+  cidades: "Cidades",
+  comparacao: "Comparações",
+  pesquisas: "Pesquisas",
+};
+let aba = "geral";
 
 function renderAll() {
   const d = atual();
   const d1 = primeiroTurno();
   renderTopo(d);
-  renderPlacar(d);
-  renderMini(d);
-  renderMapa(d);
-  if (aba === "analises") {
+  if (aba === "geral") {
+    renderPlacar(d);
+    renderMini(d);
+    renderMapa(d);
     renderResumo(d, d1);
     renderDecisao(d);
+  } else if (aba === "evolucao") {
     renderLinhaTempo(d);
     renderEventos(d);
-    renderRegioes(d);
     renderProjecao(d, d1);
-    renderComparacao(d);
-    renderRankings(d, d1);
-  } else if (aba === "pesquisas") {
-    renderPesquisas(d);
   } else if (aba === "estados") {
+    renderRegioes(d);
     renderEstados(d);
-  } else {
+    renderRankings(d, d1);
+  } else if (aba === "cidades") {
     renderCidades(d);
+  } else if (aba === "comparacao") {
+    renderComparacao(d);
+  } else {
+    renderPesquisas(d);
   }
 }
 
@@ -1918,7 +1929,7 @@ let larguraAnterior = innerWidth;
 addEventListener("resize", () => {
   if (Math.abs(innerWidth - larguraAnterior) < 40) return;
   larguraAnterior = innerWidth;
-  if (aba === "analises") renderLinhaTempo(atual());
+  if (aba === "evolucao") renderLinhaTempo(atual());
 });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) atualizar();
@@ -1996,16 +2007,34 @@ $("#regioes").addEventListener("click", (ev) => {
 });
 
 function abrirAba(nome) {
+  if (!SECOES[nome]) nome = "geral";
   aba = nome;
-  document.querySelectorAll(".tabs button").forEach((x) => x.setAttribute("aria-selected", String(x.dataset.tab === nome)));
+  document.querySelectorAll(".menu [data-tab]").forEach((x) => x.setAttribute("aria-current", x.dataset.tab === nome ? "page" : "false"));
   document.querySelectorAll(".painel").forEach((p) => (p.hidden = p.id !== "tab-" + nome));
+  $("#titulo-pagina").textContent = SECOES[nome];
+  scrollTo({ top: 0 });
 }
-document.querySelectorAll(".tabs button").forEach((b) =>
+document.querySelectorAll(".menu [data-tab]").forEach((b) =>
   b.addEventListener("click", () => {
     abrirAba(b.dataset.tab);
+    menu(false);
     renderAll();
   }),
 );
+
+// celular: a barra lateral vira um menu que abre por cima
+function menu(abrir) {
+  document.body.classList.toggle("menu-aberto", abrir);
+  $("#fundo-menu").hidden = !abrir;
+  $("#abrir-menu").setAttribute("aria-expanded", String(abrir));
+  if (abrir) $("#lateral").querySelector("[aria-current='page']")?.focus();
+}
+$("#abrir-menu").addEventListener("click", () => menu(true));
+$("#fechar-menu").addEventListener("click", () => menu(false));
+$("#fundo-menu").addEventListener("click", () => menu(false));
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && document.body.classList.contains("menu-aberto")) menu(false);
+});
 
 // link do que está na tela: turno, cargo, recorte, modo do mapa e aba
 $("#btn-compartilhar").addEventListener("click", async () => {
@@ -2014,7 +2043,7 @@ $("#btn-compartilhar").addEventListener("click", async () => {
   url.searchParams.set("cargo", cfg.cargo);
   if (cfg.recorte) url.searchParams.set("recorte", cfg.recorte);
   if (modoEscolhido) url.searchParams.set("mapa", modoEscolhido);
-  if (aba !== "analises") url.searchParams.set("aba", aba);
+  if (aba !== "geral") url.searchParams.set("aba", aba);
   if (cfg.fonte === "demo") url.searchParams.set("fonte", "demo");
   const link = url.toString();
   const texto = `Apuração 2026 · ${CARGOS[cfg.cargo]} · ${NOME_TURNO[cfg.turno]} · ${nomeRecorte(cfg.recorte)}`;
@@ -2037,6 +2066,7 @@ $("#busca-cidade").addEventListener("input", () => renderCidades(atual()));
 // ---- telão: tela cheia só com placar, mapa e chance
 let telaCheia = false;
 function telao(ligar) {
+  if (ligar) { abrirAba("geral"); menu(false); }
   document.body.classList.toggle("telao", ligar);
   if (ligar) document.documentElement.requestFullscreen?.().then(() => (telaCheia = true)).catch(() => {});
   else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -2092,9 +2122,11 @@ if (contaAcessos) {
 }
 
 // o que veio no link compartilhado
-if (params.get("telao") === "1") document.body.classList.add("telao");
+
 if (["ganha", "vantagem", "apuradas"].includes(params.get("mapa"))) modoEscolhido = params.get("mapa");
-if (["analises", "estados", "cidades", "pesquisas"].includes(params.get("aba"))) abrirAba(params.get("aba"));
+// links antigos usavam "analises" para a primeira aba
+if (params.get("aba")) abrirAba(params.get("aba") === "analises" ? "geral" : params.get("aba"));
+if (params.get("telao") === "1") { abrirAba("geral"); document.body.classList.add("telao"); }
 
 await detectarProxy();
 atualizar();

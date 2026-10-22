@@ -7,45 +7,83 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=21">
+  <link rel="stylesheet" href="styles.css?v=22">
 </head>
 <body>
-  <header class="topo">
-    <div class="topo-in">
+  <aside class="lateral" id="lateral" aria-label="Menu do painel">
+    <div class="lateral-topo">
       <div class="marca">
         <h1>Apuração 2026</h1>
         <span class="status" id="status" data-estado="carregando"><i></i><span id="status-txt">Carregando…</span></span>
       </div>
-      <div class="controles">
-        <div class="seg" id="seg-turno" role="group" aria-label="Turno">
+      <button type="button" class="icone fechar-menu" id="fechar-menu" aria-label="Fechar o menu">✕</button>
+    </div>
+
+    <div class="filtros-lateral">
+      <div class="grupo">
+        <span class="rotulo">Turno</span>
+        <div class="seg seg-cheio" id="seg-turno" role="group" aria-label="Turno">
           <button type="button" data-v="1">1º turno</button>
           <button type="button" data-v="2">2º turno</button>
         </div>
-        <div class="seg" id="seg-cargo" role="group" aria-label="Cargo">
+      </div>
+      <div class="grupo">
+        <span class="rotulo">Cargo</span>
+        <div class="seg seg-cheio" id="seg-cargo" role="group" aria-label="Cargo">
           <button type="button" data-v="0001">Presidente</button>
           <button type="button" data-v="0003">Governador</button>
         </div>
-        <label class="sr-only" for="recorte">Ver resultado de</label>
+      </div>
+      <div class="grupo">
+        <label class="rotulo" for="recorte">Ver resultado de</label>
         <select id="recorte" class="recorte"></select>
-        <button type="button" class="icone" id="btn-atualizar" title="Atualizar agora" aria-label="Atualizar agora">↻</button>
-        <button type="button" class="botao" id="btn-compartilhar" title="Copiar o link do que está na tela">Compartilhar</button>
-        <button type="button" class="botao" id="btn-avisos" aria-pressed="false" hidden>Ligar avisos</button>
-        <button type="button" class="botao" id="btn-telao" title="Tela cheia só com placar, mapa e chance">Telão</button>
       </div>
     </div>
-    <div class="progresso" aria-live="polite">
-      <div class="progresso-in">
+
+    <nav class="menu" aria-label="Seções">
+        <button type="button" data-tab="geral" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg><span>Visão geral</span></button>
+        <button type="button" data-tab="evolucao" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 3 7-8"/><path d="M3 21h18"/></svg><span>Evolução</span></button>
+        <button type="button" data-tab="estados" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Estados</span></button>
+        <button type="button" data-tab="cidades" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V9l6-4v16M10 21V11l6-2v12M16 21v-8l4 1v7M3 21h18"/></svg><span>Cidades</span></button>
+        <button type="button" data-tab="comparacao" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16M16 4v16M4 8h4M16 16h4M4 16h4M16 8h4"/></svg><span>Comparações</span></button>
+        <button type="button" data-tab="pesquisas" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M10 20V4M15 20v-7M20 20v-4"/></svg><span>Pesquisas</span></button>
+    </nav>
+
+    <div class="acoes-lateral">
+      <button type="button" class="botao" id="btn-atualizar" title="Atualizar agora"><span class="giro" aria-hidden="true">↻</span> Atualizar agora</button>
+      <button type="button" class="botao" id="btn-compartilhar" title="Copiar o link do que está na tela">Compartilhar</button>
+      <button type="button" class="botao" id="btn-avisos" aria-pressed="false" hidden>Ligar avisos</button>
+      <button type="button" class="botao" id="btn-telao" title="Tela cheia só com placar, mapa e chance">Telão</button>
+    </div>
+
+    <div class="rodape-lateral">
+      <label class="rotulo" for="fonte">Fonte dos dados</label>
+      <select id="fonte">
+        <option value="tse">TSE (ao vivo)</option>
+        <option value="demo">Simulação</option>
+        <option value="replay">Replay do 2º turno de 2022</option>
+      </select>
+      <p id="rodape-txt">Dados: Tribunal Superior Eleitoral (resultados.tse.jus.br). Mapas: malhas municipais do IBGE. Atualiza sozinho a cada 30 segundos.</p>
+    </div>
+  </aside>
+  <div class="fundo-menu" id="fundo-menu" hidden></div>
+
+  <div class="conteudo">
+    <header class="barra">
+      <button type="button" class="icone abrir-menu" id="abrir-menu" aria-label="Abrir o menu" aria-controls="lateral" aria-expanded="false">☰</button>
+      <h2 class="titulo-pagina" id="titulo-pagina">Visão geral</h2>
+      <div class="progresso" aria-live="polite">
         <span class="pg-label">Urnas apuradas</span>
         <b class="pg-valor" id="pg-valor">—</b>
         <div class="pg-barra"><i id="pg-fill"></i></div>
         <span class="pg-sub" id="pg-sub"></span>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <main>
-    <p class="aviso" id="aviso" hidden></p>
+    <main>
+      <p class="aviso" id="aviso" hidden></p>
 
+      <section class="painel" id="tab-geral">
     <section class="hero">
       <div class="card placar-card">
         <div class="card-head">
@@ -76,15 +114,8 @@
       </div>
     </section>
 
-    <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="analises" aria-selected="true">Análises</button>
-      <button role="tab" data-tab="estados" aria-selected="false">Estados</button>
-      <button role="tab" data-tab="cidades" aria-selected="false">Cidades</button>
-      <button role="tab" data-tab="pesquisas" aria-selected="false">Pesquisas</button>
-    </nav>
-
-    <section class="painel" id="tab-analises">
-      <div class="card">
+      <div class="duas">
+        <div class="card">
         <h3>Resumo</h3>
         <ul class="insights" id="resumo"></ul>
       </div>
@@ -94,6 +125,10 @@
         <ol class="decisao" id="decisao"></ol>
         <p class="decisao-total" id="decisao-total"></p>
       </div>
+      </div>
+      </section>
+
+      <section class="painel" id="tab-evolucao" hidden>
       <div class="card" id="bloco-linha" hidden>
         <div class="card-head">
           <h3>Linha do tempo da apuração</h3>
@@ -109,43 +144,18 @@
         <h3>Acontecimentos</h3>
         <ul class="eventos" id="eventos"></ul>
       </div>
-      <div class="card" id="bloco-regioes">
-        <h3>Por região</h3>
-        <div class="regioes" id="regioes"></div>
-      </div>
       <div class="card" id="bloco-projecao">
         <h3>Projeção com as urnas que faltam</h3>
         <p class="nota" id="projecao-nota"></p>
         <div id="projecao"></div>
       </div>
-      <div class="card" id="bloco-comparacao" hidden>
-        <div class="card-head">
-          <h3 id="titulo-comparacao">Comparação</h3>
-          <div class="seg seg-sm" id="seg-base" role="group" aria-label="Comparar com"></div>
-        </div>
-        <div class="mapas-lado" id="mapas-lado"></div>
-        <p class="viradas-resumo" id="viradas-resumo"></p>
-        <ul class="viradas" id="viradas"></ul>
-        <p class="nota" id="comparacao-nota"></p>
-        <div class="table-wrap"><table id="tabela-comparacao"></table></div>
-      </div>
-      <div class="duas">
-        <div class="card">
-          <h3 id="titulo-apertadas">Disputas mais apertadas</h3>
-          <ol class="ranking" id="apertadas"></ol>
-        </div>
-        <div class="card">
-          <h3 id="titulo-folgadas">Maiores vantagens</h3>
-          <ol class="ranking" id="folgadas"></ol>
-        </div>
-      </div>
-      <div class="card" id="bloco-faltam">
-        <h3 id="titulo-faltam">Onde faltam mais votos</h3>
-        <ol class="ranking" id="faltam"></ol>
-      </div>
-    </section>
+      </section>
 
-    <section class="painel" id="tab-estados" hidden>
+      <section class="painel" id="tab-estados" hidden>
+      <div class="card" id="bloco-regioes">
+        <h3>Por região</h3>
+        <div class="regioes" id="regioes"></div>
+      </div>
       <div class="card">
         <div class="card-head">
           <h3 id="titulo-estados">Estados</h3>
@@ -161,9 +171,59 @@
         <p class="nota">Clique num estado para ver o resultado e o mapa das cidades dele.</p>
         <div class="table-wrap"><table id="tabela-estados"></table></div>
       </div>
-    </section>
+      <div class="duas">
+        <div class="card">
+          <h3 id="titulo-apertadas">Disputas mais apertadas</h3>
+          <ol class="ranking" id="apertadas"></ol>
+        </div>
+        <div class="card">
+          <h3 id="titulo-folgadas">Maiores vantagens</h3>
+          <ol class="ranking" id="folgadas"></ol>
+        </div>
+      </div>
+      <div class="card" id="bloco-faltam">
+        <h3 id="titulo-faltam">Onde faltam mais votos</h3>
+        <ol class="ranking" id="faltam"></ol>
+      </div>
+      </section>
 
-    <section class="painel" id="tab-pesquisas" hidden>
+      <section class="painel" id="tab-cidades" hidden>
+      <div class="card">
+        <div class="card-head">
+          <h3 id="titulo-cidades">Cidades</h3>
+          <div class="filtros">
+            <label class="inline-label">Estado <select id="cidades-uf"></select></label>
+            <input id="busca-cidade" type="search" placeholder="Buscar cidade" aria-label="Buscar cidade">
+            <label class="inline-label">Ordenar por
+              <select id="ordem-cidades">
+                <option value="eleitorado">Eleitorado</option>
+                <option value="apuradas">% urnas apuradas</option>
+                <option value="lider">Vantagem do 1º</option>
+                <option value="nome">Nome</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <p class="nota" id="cidades-status"></p>
+        <div class="table-wrap"><table id="tabela-cidades"></table></div>
+      </div>
+      </section>
+
+      <section class="painel" id="tab-comparacao" hidden>
+      <div class="card" id="bloco-comparacao" hidden>
+        <div class="card-head">
+          <h3 id="titulo-comparacao">Comparação</h3>
+          <div class="seg seg-sm" id="seg-base" role="group" aria-label="Comparar com"></div>
+        </div>
+        <div class="mapas-lado" id="mapas-lado"></div>
+        <p class="viradas-resumo" id="viradas-resumo"></p>
+        <ul class="viradas" id="viradas"></ul>
+        <p class="nota" id="comparacao-nota"></p>
+        <div class="table-wrap"><table id="tabela-comparacao"></table></div>
+      </div>
+      </section>
+
+      <section class="painel" id="tab-pesquisas" hidden>
       <p class="aviso" id="pesq-aviso" hidden></p>
       <div class="card" id="pesq-media-card">
         <div class="card-head">
@@ -190,45 +250,13 @@
         <p class="nota" id="pesq-nota"></p>
         <div class="table-wrap"><table id="tabela-pesquisas"></table></div>
       </div>
-    </section>
-
-    <section class="painel" id="tab-cidades" hidden>
-      <div class="card">
-        <div class="card-head">
-          <h3 id="titulo-cidades">Cidades</h3>
-          <div class="filtros">
-            <label class="inline-label">Estado <select id="cidades-uf"></select></label>
-            <input id="busca-cidade" type="search" placeholder="Buscar cidade" aria-label="Buscar cidade">
-            <label class="inline-label">Ordenar por
-              <select id="ordem-cidades">
-                <option value="eleitorado">Eleitorado</option>
-                <option value="apuradas">% urnas apuradas</option>
-                <option value="lider">Vantagem do 1º</option>
-                <option value="nome">Nome</option>
-              </select>
-            </label>
-          </div>
-        </div>
-        <p class="nota" id="cidades-status"></p>
-        <div class="table-wrap"><table id="tabela-cidades"></table></div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="rodape">
-    <label class="inline-label">Fonte dos dados
-      <select id="fonte">
-        <option value="tse">TSE (ao vivo)</option>
-        <option value="demo">Simulação</option>
-        <option value="replay">Replay do 2º turno de 2022</option>
-      </select>
-    </label>
-    <span id="rodape-txt">Dados: Tribunal Superior Eleitoral (resultados.tse.jus.br). Mapas: malhas municipais do IBGE. Atualiza sozinho a cada 30 segundos.</span>
-  </footer>
+      </section>
+    </main>
+  </div>
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
   <button type="button" class="sair-telao" id="sair-telao">Sair do telão</button>
-  <script type="module" src="app.js?v=21"></script>
+  <script type="module" src="app.js?v=22"></script>
 </body>
 </html>
