@@ -1,0 +1,46 @@
+# Grava public/pesquisas.json (rodar na raiz do repositório).
+# Uso: python3 finalizar.py AAAA-MM-DD <pasta-dos-txt>
+# NOTICIAS: pesquisas que só uma lista traz, conferidas à mão numa reportagem.
+import json, re, sys, os
+D=os.path.join(sys.argv[2], '')  # mesma pasta do montar.py
+o=json.load(open(D+'pesq_out.json'))
+WP='https://pt.wikipedia.org/wiki/Pesquisas_de_opini%C3%A3o_para_a_elei%C3%A7%C3%A3o_presidencial_no_Brasil_em_2026'
+# confirmadas nas reportagens (só a Wikipédia em português trazia)
+NOTICIAS={('Alfa','2026-10-22'):('https://exame.com/brasil/pesquisa-alfa-a-dois-dias-do-2o-turno-flavio-bolsonaro-tem-52-e-lula-48/','2026-10-23'),
+          ('Real Time Big Data','2026-10-22'):('https://www.gazetadopovo.com.br/eleicoes/2026/pesquisa-eleitoral-2026/real-time-big-data-presidente-outubro-2026-segundo-turno-2/','2026-10-23')}
+fin=[]
+for p in o:
+    if p.get('antesDo1Turno'):
+        if p['instituto']=='Datafolha' and p['conferido']: p['fonte']=p['fonte'] or WP; fin.append(p)
+        elif p['instituto']=='Quaest':
+            p.update(conferido=True, fonte='https://g1.globo.com/politica/eleicoes/2026/pesquisa-eleitoral/noticia/2026/10/03/quaest-2o-turno-flavio-bolsonaro-44percent-lula-42percent.ghtml', margem=2.0, amostra=3702); fin.append(p)
+        continue
+    k=(p['instituto'],p['campo'][1])
+    if k in NOTICIAS and not p['conferido']: p['fonte'],p['divulgacao']=NOTICIAS[k]; p['conferido']=True
+    p['fonte']=p['fonte'] or WP
+    fin.append(p)
+for p in fin:
+    if p['margem'] is not None and float(p['margem']).is_integer(): p['margem']=int(p['margem'])
+    for g in ('totais','validos'):
+        if p[g]: p[g]={k:(int(v) if float(v).is_integer() else v) for k,v in p[g].items()}
+# próximas: registradas no TSE, resultado ainda não divulgado
+MES={'Out':10,'Set':9}
+L=open(D+'ptp.txt').read().split('\n'); a=L.index('== Segundo turno =='); a=L.index('==== 2026 ====', a); b=L.index('==== 2025 ====', a)
+prox=[]
+for blk in re.split(r'\n\|-[^\n]*','\n'.join(L[a:b])):
+    if 'ainda não divulgado' not in blk: continue
+    lines=[l for l in blk.split('\n') if l.startswith('|')]
+    nome=re.sub(r'<ref.*|<!--.*','',lines[0][1:]).strip()
+    nome={'DataFolha':'Datafolha','PoderData/Aya':'PoderData','Nexus/BTG':'Nexus','CNT/MDA':'MDA','Alfa Inteligência':'Alfa'}.get(nome,nome)
+    m=re.findall(r'(\d+) (Out|Set)',lines[1]); reg=re.search(r'BR-\d{5}/\d{4}',blk); dv=re.search(r'divulga\w+(?: registrad[oa])?:\s*(\d\d)/(\d\d)/(\d{4})',blk)
+    if len(m)<1 or not dv: continue
+    am=re.sub(r'\D','',lines[2]) if len(lines)>2 else ''
+    prox.append({'instituto':nome,'campo':[f'2026-{MES[m[0][1]]:02d}-{int(m[0][0]):02d}',f'2026-{MES[m[-1][1]]:02d}-{int(m[-1][0]):02d}'],
+                 'divulgacao':f'{dv.group(3)}-{dv.group(2)}-{dv.group(1)}','amostra':int(am) if am else None,'registro':reg.group(0) if reg else None})
+prox.sort(key=lambda x:(x['divulgacao'],x['instituto']))
+d=json.load(open('public/pesquisas.json'))
+d['atualizado']=sys.argv[1]; d['pesquisas']=fin; d['proximas']=prox
+d['nota']="Pesquisas de 2º turno para presidente (Flávio Bolsonaro × Lula) desde o 1º turno, reunidas das tabelas da Wikipédia em português e em inglês e conferidas nas reportagens, com o link de cada fonte. \"Conferida\" = os mesmos números aparecem em duas fontes independentes; \"a conferir\" = só uma delas traz a pesquisa ou as datas não batem."
+open('public/pesquisas.json','w').write(json.dumps(d,ensure_ascii=False,indent=2)+'\n')
+print(len(fin),'pesquisas',sum(p['conferido'] for p in fin),'conferidas |',len(prox),'próximas')
+for x in prox: print(' ',x)
