@@ -8,6 +8,13 @@ WP='https://pt.wikipedia.org/wiki/Pesquisas_de_opini%C3%A3o_para_a_elei%C3%A7%C3
 # confirmadas nas reportagens (só a Wikipédia em português trazia)
 NOTICIAS={('Alfa','2026-10-22'):('https://exame.com/brasil/pesquisa-alfa-a-dois-dias-do-2o-turno-flavio-bolsonaro-tem-52-e-lula-48/','2026-10-23'),
           ('Real Time Big Data','2026-10-22'):('https://www.gazetadopovo.com.br/eleicoes/2026/pesquisa-eleitoral-2026/real-time-big-data-presidente-outubro-2026-segundo-turno-2/','2026-10-23')}
+# saíram nas reportagens mas ainda não estão em nenhuma das Wikipédias (conferidas em dois veículos);
+# se a Wikipédia já tiver o mesmo instituto com o mesmo fim de campo, vale a da Wikipédia
+MANUAIS=[
+  {"instituto":"Veritá","contratante":None,"campo":["2026-10-18","2026-10-22"],"divulgacao":"2026-10-23","amostra":15554,"margem":1,
+   "registro":"BR-06070/2026","totais":{"22":50.2,"13":47.5},"validos":{"22":51.3,"13":48.7},
+   "fonte":"https://ncnews.com.br/2026/10/23/verita-flavio-bolsonaro-lula-2-turno/","conferido":True},
+]
 fin=[]
 for p in o:
     if p.get('antesDo1Turno'):
@@ -19,6 +26,9 @@ for p in o:
     if k in NOTICIAS and not p['conferido']: p['fonte'],p['divulgacao']=NOTICIAS[k]; p['conferido']=True
     p['fonte']=p['fonte'] or WP
     fin.append(p)
+ja=set((p['instituto'],p['campo'][1]) for p in fin)
+fin+=[m for m in MANUAIS if (m['instituto'],m['campo'][1]) not in ja]
+fin.sort(key=lambda o:(o['campo'][1],o['instituto']),reverse=True)
 for p in fin:
     if p['margem'] is not None and float(p['margem']).is_integer(): p['margem']=int(p['margem'])
     for g in ('totais','validos'):

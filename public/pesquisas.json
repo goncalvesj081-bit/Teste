@@ -26,6 +26,28 @@
       "conferido": true
     },
     {
+      "instituto": "Veritá",
+      "contratante": null,
+      "campo": [
+        "2026-10-18",
+        "2026-10-22"
+      ],
+      "divulgacao": "2026-10-23",
+      "amostra": 15554,
+      "margem": 1,
+      "registro": "BR-06070/2026",
+      "totais": {
+        "22": 50.2,
+        "13": 47.5
+      },
+      "validos": {
+        "22": 51.3,
+        "13": 48.7
+      },
+      "fonte": "https://ncnews.com.br/2026/10/23/verita-flavio-bolsonaro-lula-2-turno/",
+      "conferido": true
+    },
+    {
       "instituto": "Real Time Big Data",
       "contratante": null,
       "campo": [
