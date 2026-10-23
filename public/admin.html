@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=22">
+  <link rel="stylesheet" href="styles.css?v=25">
 </head>
 <body class="admin">
   <header class="topo">
@@ -64,9 +64,68 @@
       </div>
       <p class="nota" id="rodape-admin"></p>
     </section>
+
+    <section class="divulgar" id="divulgar" hidden>
+      <h2 class="secao-titulo">Divulgação</h2>
+
+      <div class="card">
+        <div class="card-head"><h3>Link do painel</h3><span class="nota-inline">aparece com imagem de prévia no WhatsApp e nas redes</span></div>
+        <div class="link-linha">
+          <input type="text" id="link-principal" readonly aria-label="Link do painel">
+          <button type="button" class="botao primario" data-copiar="#link-principal">Copiar</button>
+          <a class="botao link-botao" id="abrir-principal" target="_blank" rel="noopener">Abrir</a>
+        </div>
+        <div class="redes" id="redes-principal"></div>
+      </div>
+
+      <div class="duas">
+        <div class="card">
+          <h3>Textos prontos</h3>
+          <p class="nota">Toque em um canal para abrir já com o texto e o link, ou copie e cole onde quiser.</p>
+          <div id="textos"></div>
+        </div>
+        <div class="card">
+          <h3>QR code</h3>
+          <p class="nota">Para imagem, impresso ou telão. Escolha um estado para gerar o link e o QR só dele.</p>
+          <div class="qr-linha">
+            <label class="inline-label">Mostrar
+              <select id="qr-recorte"></select>
+            </label>
+            <label class="inline-label">Cargo
+              <select id="qr-cargo"><option value="0001">Presidente</option><option value="0003">Governador</option></select>
+            </label>
+          </div>
+          <div class="qr-caixa" id="qr"></div>
+          <div class="link-linha">
+            <input type="text" id="link-qr" readonly aria-label="Link do QR code">
+            <button type="button" class="botao" data-copiar="#link-qr">Copiar link</button>
+          </div>
+          <div class="redes">
+            <button type="button" class="botao" id="baixar-qr-png">Baixar PNG</button>
+            <button type="button" class="botao" id="baixar-qr-svg">Baixar SVG</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Imagens prontas</h3><span class="nota-inline">os stories já trazem o QR code do painel</span></div>
+        <div class="imagens">
+          <figure><img src="divulgacao/story-convite.png" alt="Story: apuração ao vivo domingo a partir das 17h" loading="lazy"><figcaption>Story · convite (sábado)<a class="botao" href="divulgacao/story-convite.png" download="apuracao-story-convite.png">Baixar</a></figcaption></figure>
+          <figure><img src="divulgacao/story-comecou.png" alt="Story: começou a apuração" loading="lazy"><figcaption>Story · começou (domingo 17h)<a class="botao" href="divulgacao/story-comecou.png" download="apuracao-story-comecou.png">Baixar</a></figcaption></figure>
+          <figure class="larga"><img src="divulgacao/feed.png" alt="Imagem para feed: Apuração 2026 ao vivo" loading="lazy"><figcaption>Feed / X / Facebook<a class="botao" href="divulgacao/feed.png" download="apuracao-feed.png">Baixar</a></figcaption></figure>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Quando postar</h3>
+        <p class="nota">Marque o que já fez (fica salvo neste navegador).</p>
+        <ul class="checklist" id="checklist"></ul>
+      </div>
+    </section>
   </main>
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
-  <script type="module" src="admin.js?v=24"></script>
+  <script src="vendor/qrcode.js"></script>
+  <script type="module" src="admin.js?v=25"></script>
 </body>
 </html>

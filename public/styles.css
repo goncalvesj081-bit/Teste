@@ -501,3 +501,29 @@ body.telao .lateral, body.telao .abrir-menu, body.telao .titulo-pagina, body.tel
 body.telao .conteudo main { max-width: none; }
 @media (prefers-reduced-motion: reduce) { .lateral { transition: none; } }
 body.telao .barra { padding-right: 150px; }
+
+/* ---------- admin: divulgação */
+.divulgar { display: grid; gap: 16px; margin-top: 8px; }
+.secao-titulo { font-size: 20px; font-weight: 700; margin: 12px 0 0; }
+.link-linha { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.link-linha input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 14px; }
+.link-linha .botao { height: 38px; flex: none; }
+.redes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.redes .botao { display: inline-flex; align-items: center; }
+.texto-pronto { border-top: 1px solid var(--grid); padding: 14px 0 4px; }
+.texto-pronto:first-child { border-top: 0; padding-top: 4px; }
+.texto-pronto p { margin: 6px 0 0; font-size: 14px; color: var(--text-2); line-height: 1.5; overflow-wrap: anywhere; }
+.qr-linha { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; }
+.qr-caixa { width: min(240px, 100%); aspect-ratio: 1; margin: 14px auto 4px; background: #fff; border-radius: 12px; padding: 6px; box-sizing: border-box; }
+.qr-caixa svg { width: 100%; height: 100%; display: block; }
+.imagens { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; margin-top: 12px; align-items: end; }
+.imagens figure { margin: 0; display: grid; gap: 8px; }
+.imagens figure.larga { grid-column: span 2; }
+.imagens img { width: 100%; border-radius: 10px; border: 1px solid var(--border); display: block; }
+.imagens figcaption { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.imagens figcaption .botao { display: inline-flex; align-items: center; text-decoration: none; flex: none; }
+.checklist { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 10px; }
+.checklist label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+.checklist input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+.checklist input:checked + span { color: var(--text-3); text-decoration: line-through; }
+@media (max-width: 520px) { .imagens figure.larga { grid-column: 1 / -1; } .link-linha { flex-wrap: wrap; } }
