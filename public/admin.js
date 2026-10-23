@@ -1,5 +1,5 @@
 // Página de acessos: lê os números do banco (supabase/acessos.sql) com a senha do admin.
-import { ACESSOS } from "./config.js?v=19";
+import { ACESSOS } from "./config.js?v=24";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");

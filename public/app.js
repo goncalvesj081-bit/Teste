@@ -1,6 +1,6 @@
 import { UFS, REGIOES, CARGOS, TseSource, DemoSource, ReplaySource, aggregate } from "./data.js?v=17";
 import { chancePorCidades, PERFIS, aleatorio, normal } from "./modelo.js?v=17";
-import { ACESSOS } from "./config.js?v=19";
+import { ACESSOS } from "./config.js?v=24";
 
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat("pt-BR");

@@ -46,7 +46,7 @@ create or replace function public.registrar_acesso(p_id uuid, p_aparelho text, p
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   insert into acessos (id, aparelho, vendo)
@@ -68,7 +68,7 @@ create or replace function public.estatisticas_acessos(p_senha text)
 returns json
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   inicio_dia timestamptz := date_trunc('day', now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo';
