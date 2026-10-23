@@ -1650,7 +1650,7 @@ function renderCidades(d) {
 // Pesquisas de 2º turno para presidente, reunidas em pesquisas.json (com a fonte de cada uma).
 let pesquisas = null;
 const carregarPesquisas = () =>
-  (pesquisas ||= fetch("pesquisas.json?v=23", { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))));
+  (pesquisas ||= fetch("pesquisas.json?v=26", { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))));
 
 const dataBR = (iso) => (iso ? new Date(iso + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "—");
 const fimCampo = (p) => (p.campo ? p.campo[1] : p.divulgacao);
@@ -1692,7 +1692,7 @@ async function renderPesquisas(d) {
   $("#pesq-aviso").hidden = !aConferir && !governador();
   $("#pesq-aviso").textContent = governador()
     ? "As pesquisas reunidas aqui são do 2º turno para presidente."
-    : `${aConferir} das ${lista.length} pesquisas ainda estão marcadas "a conferir": aparecem em só uma das listas de pesquisas (Wikipédia em português e em inglês) ou com datas diferentes. As outras têm os mesmos números nas duas. Confira sempre pelo link da fonte.`;
+    : `${aConferir} das ${lista.length} pesquisas ainda estão marcadas "a conferir": aparecem em só uma fonte ou com datas diferentes. As outras têm os mesmos números em duas fontes independentes (as listas da Wikipédia em português e em inglês ou a reportagem). Confira sempre pelo link da fonte.`;
   $("#pesq-atualizado").textContent = `lista atualizada em ${dataBR(dados.atualizado)}`;
 
   // média
@@ -1737,6 +1737,24 @@ async function renderPesquisas(d) {
 
   // tabela
   $("#pesq-nota").textContent = dados.nota;
+  // pesquisas já registradas no TSE que ainda não divulgaram o resultado
+  const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const feitas = new Set(lista.map((p) => `${p.instituto}|${p.campo?.[1]}`));
+  const proximas = (dados.proximas || []).filter((p) => !feitas.has(`${p.instituto}|${p.campo[1]}`));
+  $("#pesq-proximas-card").hidden = !proximas.length;
+  $("#tabela-proximas").innerHTML =
+    `<thead><tr><th>Divulgação prevista</th><th>Instituto</th><th>Campo</th><th class="r">Entrevistas</th><th>Registro TSE</th></tr></thead><tbody>` +
+    proximas
+      .map((p) => `<tr>
+          <td>${dataBR(p.divulgacao)}${p.divulgacao === hoje ? "<small>hoje</small>" : p.divulgacao < hoje ? "<small>prevista, ainda não saiu</small>" : ""}</td>
+          <td><b>${esc(p.instituto)}</b></td>
+          <td>${dataBR(p.campo[0])} a ${dataBR(p.campo[1])}</td>
+          <td class="r">${p.amostra ? fmt.format(p.amostra) : "—"}</td>
+          <td>${p.registro ? esc(p.registro) : "—"}</td>
+        </tr>`)
+      .join("") +
+    "</tbody>";
+
   $("#tabela-pesquisas").innerHTML =
     `<thead><tr><th>Campo</th><th>Instituto</th><th class="r">Entrevistas</th><th class="r">Margem</th>
       <th class="r">${sw(F)} Flávio</th><th class="r">${sw(L)} Lula</th><th class="r">Diferença</th><th>Registro TSE</th><th>Fonte</th></tr></thead><tbody>` +

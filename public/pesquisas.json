@@ -1,11 +1,49 @@
 {
   "atualizado": "2026-10-23",
-  "nota": "Pesquisas de 2º turno para presidente (Flávio Bolsonaro × Lula) desde o 1º turno, reunidas das tabelas da Wikipédia em português e em inglês, com o link de cada fonte. \"Conferida\" = os mesmos números aparecem nas duas listas, que são montadas de forma independente; \"a conferir\" = só uma delas traz a pesquisa ou as datas não batem.",
+  "nota": "Pesquisas de 2º turno para presidente (Flávio Bolsonaro × Lula) desde o 1º turno, reunidas das tabelas da Wikipédia em português e em inglês e conferidas nas reportagens, com o link de cada fonte. \"Conferida\" = os mesmos números aparecem em duas fontes independentes; \"a conferir\" = só uma delas traz a pesquisa ou as datas não batem.",
   "candidatos": {
     "22": "FLAVIO BOLSONARO",
     "13": "LULA"
   },
   "pesquisas": [
+    {
+      "instituto": "Vox",
+      "contratante": null,
+      "campo": [
+        "2026-10-20",
+        "2026-10-22"
+      ],
+      "divulgacao": "2026-10-23",
+      "amostra": 2100,
+      "margem": 2.15,
+      "registro": "BR-03259/2026",
+      "totais": {
+        "22": 44.3,
+        "13": 45.4
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/vox-lula-tem-506-dos-votos-validos-no-2o-turno-flavio-494/",
+      "conferido": true
+    },
+    {
+      "instituto": "Real Time Big Data",
+      "contratante": null,
+      "campo": [
+        "2026-10-19",
+        "2026-10-22"
+      ],
+      "divulgacao": "2026-10-23",
+      "amostra": 2000,
+      "margem": 2,
+      "registro": "BR-09670/2026",
+      "totais": {
+        "22": 49,
+        "13": 45
+      },
+      "validos": null,
+      "fonte": "https://www.gazetadopovo.com.br/eleicoes/2026/pesquisa-eleitoral-2026/real-time-big-data-presidente-outubro-2026-segundo-turno-2/",
+      "conferido": true
+    },
     {
       "instituto": "Datafolha",
       "contratante": null,
@@ -23,6 +61,25 @@
       },
       "validos": null,
       "fonte": "https://www1.folha.uol.com.br/poder/2026/10/datafolha-flavio-bolsonaro-e-lula-empatam-com-50-dos-votos-validos-cada.shtml",
+      "conferido": true
+    },
+    {
+      "instituto": "Alfa",
+      "contratante": null,
+      "campo": [
+        "2026-10-18",
+        "2026-10-22"
+      ],
+      "divulgacao": "2026-10-23",
+      "amostra": 2700,
+      "margem": 1.9,
+      "registro": "BR-08496/2026",
+      "totais": null,
+      "validos": {
+        "22": 52,
+        "13": 48
+      },
+      "fonte": "https://exame.com/brasil/pesquisa-alfa-a-dois-dias-do-2o-turno-flavio-bolsonaro-tem-52-e-lula-48/",
       "conferido": true
     },
     {
@@ -834,7 +891,7 @@
         "2026-10-03"
       ],
       "divulgacao": null,
-      "amostra": 8,
+      "amostra": 4006,
       "margem": 2,
       "registro": null,
       "totais": {
@@ -845,6 +902,158 @@
       "fonte": "https://pt.wikipedia.org/wiki/Pesquisas_de_opini%C3%A3o_para_a_elei%C3%A7%C3%A3o_presidencial_no_Brasil_em_2026",
       "conferido": true,
       "antesDo1Turno": true
+    }
+  ],
+  "proximas": [
+    {
+      "instituto": "Vetor Arrow",
+      "campo": [
+        "2026-10-22",
+        "2026-10-23"
+      ],
+      "divulgacao": "2026-10-20",
+      "amostra": 3000,
+      "registro": "BR-06957/2026"
+    },
+    {
+      "instituto": "Gerp",
+      "campo": [
+        "2026-10-21",
+        "2026-10-24"
+      ],
+      "divulgacao": "2026-10-22",
+      "amostra": 2400,
+      "registro": "BR-09327/2026"
+    },
+    {
+      "instituto": "DataTrends",
+      "campo": [
+        "2026-10-19",
+        "2026-10-21"
+      ],
+      "divulgacao": "2026-10-23",
+      "amostra": 2000,
+      "registro": "BR-03365/2026"
+    },
+    {
+      "instituto": "Ipespe",
+      "campo": [
+        "2026-10-20",
+        "2026-10-22"
+      ],
+      "divulgacao": "2026-10-23",
+      "amostra": 1500,
+      "registro": "BR-04350/2026"
+    },
+    {
+      "instituto": "Veritá",
+      "campo": [
+        "2026-10-18",
+        "2026-10-22"
+      ],
+      "divulgacao": "2026-10-23",
+      "amostra": 15554,
+      "registro": "BR-06070/2026"
+    },
+    {
+      "instituto": "AtlasIntel",
+      "campo": [
+        "2026-10-18",
+        "2026-10-23"
+      ],
+      "divulgacao": "2026-10-24",
+      "amostra": 5000,
+      "registro": "BR-06380/2026"
+    },
+    {
+      "instituto": "Datafolha",
+      "campo": [
+        "2026-10-23",
+        "2026-10-24"
+      ],
+      "divulgacao": "2026-10-24",
+      "amostra": 4050,
+      "registro": "BR-09540/2026"
+    },
+    {
+      "instituto": "Futura",
+      "campo": [
+        "2026-10-21",
+        "2026-10-24"
+      ],
+      "divulgacao": "2026-10-24",
+      "amostra": 2000,
+      "registro": "BR-09726/2026"
+    },
+    {
+      "instituto": "MDA",
+      "campo": [
+        "2026-10-21",
+        "2026-10-23"
+      ],
+      "divulgacao": "2026-10-24",
+      "amostra": 2002,
+      "registro": "BR-02136/2026"
+    },
+    {
+      "instituto": "Nexus",
+      "campo": [
+        "2026-10-23",
+        "2026-10-24"
+      ],
+      "divulgacao": "2026-10-24",
+      "amostra": 2000,
+      "registro": "BR-08234/2026"
+    },
+    {
+      "instituto": "Palver",
+      "campo": [
+        "2026-10-22",
+        "2026-10-24"
+      ],
+      "divulgacao": "2026-10-24",
+      "amostra": 5000,
+      "registro": "BR-01794/2026"
+    },
+    {
+      "instituto": "Phoenix",
+      "campo": [
+        "2026-10-19",
+        "2026-10-22"
+      ],
+      "divulgacao": "2026-10-24",
+      "amostra": 4001,
+      "registro": "BR-06173/2026"
+    },
+    {
+      "instituto": "Quaest",
+      "campo": [
+        "2026-10-23",
+        "2026-10-24"
+      ],
+      "divulgacao": "2026-10-24",
+      "amostra": 3702,
+      "registro": "BR-09158/2026"
+    },
+    {
+      "instituto": "Veritá",
+      "campo": [
+        "2026-10-19",
+        "2026-10-23"
+      ],
+      "divulgacao": "2026-10-24",
+      "amostra": 15554,
+      "registro": "BR-03181/2026"
+    },
+    {
+      "instituto": "PoderData",
+      "campo": [
+        "2026-10-23",
+        "2026-10-24"
+      ],
+      "divulgacao": "2026-10-25",
+      "amostra": 4000,
+      "registro": "BR-02828/2026"
     }
   ]
 }
