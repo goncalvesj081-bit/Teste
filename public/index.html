@@ -15,11 +15,17 @@
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Apuração">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f172a'/%3E%3Crect x='6' y='18' width='5' height='8' rx='1' fill='%23ef4444'/%3E%3Crect x='13.5' y='12' width='5' height='14' rx='1' fill='%2394a3b8'/%3E%3Crect x='21' y='7' width='5' height='19' rx='1' fill='%2322c55e'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=25">
+  <link rel="stylesheet" href="styles.css?v=27">
 </head>
 <body>
   <aside class="lateral" id="lateral" aria-label="Menu do painel">
@@ -65,6 +71,7 @@
       <button type="button" class="botao" id="btn-atualizar" title="Atualizar agora"><span class="giro" aria-hidden="true">↻</span> Atualizar agora</button>
       <button type="button" class="botao" id="btn-compartilhar" title="Copiar o link do que está na tela">Compartilhar</button>
       <button type="button" class="botao" id="btn-avisos" aria-pressed="false" hidden>Ligar avisos</button>
+      <button type="button" class="botao" id="btn-instalar" hidden>Instalar app</button>
       <button type="button" class="botao" id="btn-telao" title="Tela cheia só com placar, mapa e chance">Telão</button>
     </div>
 
@@ -275,7 +282,17 @@
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
+  <dialog class="dialogo" id="dialogo-instalar" aria-labelledby="dialogo-instalar-titulo">
+    <h2 id="dialogo-instalar-titulo">Instalar no iPhone</h2>
+    <ol>
+      <li>Toque em <b>Compartilhar</b> <span aria-hidden="true">(o quadrado com a seta para cima)</span> na barra do Safari.</li>
+      <li>Role e escolha <b>Adicionar à Tela de Início</b>.</li>
+      <li>Toque em <b>Adicionar</b>. O ícone da Apuração aparece junto dos seus apps.</li>
+    </ol>
+    <p class="nota">Se estiver no Chrome ou em outro app (Instagram, WhatsApp), abra o link no Safari primeiro.</p>
+    <form method="dialog"><button class="botao primario">Entendi</button></form>
+  </dialog>
   <button type="button" class="sair-telao" id="sair-telao">Sair do telão</button>
-  <script type="module" src="app.js?v=26"></script>
+  <script type="module" src="app.js?v=27"></script>
 </body>
 </html>

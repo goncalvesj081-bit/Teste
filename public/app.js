@@ -2145,5 +2145,32 @@ if (["ganha", "vantagem", "apuradas"].includes(params.get("mapa"))) modoEscolhid
 if (params.get("aba")) abrirAba(params.get("aba") === "analises" ? "geral" : params.get("aba"));
 if (params.get("telao") === "1") { abrirAba("geral"); document.body.classList.add("telao"); }
 
+// ------------------------------------------------------------- instalar como app
+
+// o service worker é o que deixa o celular oferecer "Instalar app"
+if (location.protocol.startsWith("http")) addEventListener("load", () => registroAvisos());
+const instalado = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const ehIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+let pedidoInstalar = null;
+addEventListener("beforeinstallprompt", (ev) => {
+  ev.preventDefault(); // guarda o pedido para o botão do menu, em vez da faixa automática
+  pedidoInstalar = ev;
+  $("#btn-instalar").hidden = false;
+});
+addEventListener("appinstalled", () => { pedidoInstalar = null; $("#btn-instalar").hidden = true; toast("App instalado. Ele aparece junto dos seus apps."); });
+// no iPhone não existe o pedido automático: o botão explica o caminho pelo Safari
+if (ehIOS && !instalado()) $("#btn-instalar").hidden = false;
+$("#btn-instalar").addEventListener("click", async () => {
+  if (pedidoInstalar) {
+    pedidoInstalar.prompt();
+    const { outcome } = await pedidoInstalar.userChoice;
+    if (outcome === "accepted") $("#btn-instalar").hidden = true;
+    pedidoInstalar = null;
+    return;
+  }
+  menu(false);
+  $("#dialogo-instalar").showModal();
+});
+
 await detectarProxy();
 atualizar();
