@@ -1,58 +1,583 @@
 {
-  "atualizado": "2026-10-22",
-  "nota": "Pesquisas de 2º turno para presidente (Flávio Bolsonaro × Lula), reunidas de reportagens, com o link de cada fonte. As marcadas \"a conferir\" ainda não foram conferidas na divulgação original do instituto.",
+  "atualizado": "2026-10-23",
+  "nota": "Pesquisas de 2º turno para presidente (Flávio Bolsonaro × Lula) desde o 1º turno, reunidas das tabelas da Wikipédia em português e em inglês, com o link de cada fonte. \"Conferida\" = os mesmos números aparecem nas duas listas, que são montadas de forma independente; \"a conferir\" = só uma delas traz a pesquisa ou as datas não batem.",
   "candidatos": {
     "22": "FLAVIO BOLSONARO",
     "13": "LULA"
   },
   "pesquisas": [
     {
-      "instituto": "AtlasIntel",
-      "contratante": "Bloomberg",
+      "instituto": "Datafolha",
+      "contratante": null,
       "campo": [
-        "2026-10-13",
-        "2026-10-18"
+        "2026-10-20",
+        "2026-10-22"
       ],
-      "divulgacao": "2026-10-19",
-      "amostra": 4998,
-      "margem": 1,
-      "registro": "BR-02418/2026",
+      "divulgacao": "2026-10-22",
+      "amostra": 2520,
+      "margem": 2,
+      "registro": "BR-09709/2026",
       "totais": {
-        "22": 49.8,
-        "13": 47.6
+        "22": 47,
+        "13": 46
+      },
+      "validos": null,
+      "fonte": "https://www1.folha.uol.com.br/poder/2026/10/datafolha-flavio-bolsonaro-e-lula-empatam-com-50-dos-votos-validos-cada.shtml",
+      "conferido": true
+    },
+    {
+      "instituto": "PoderData",
+      "contratante": null,
+      "campo": [
+        "2026-10-19",
+        "2026-10-21"
+      ],
+      "divulgacao": "2026-10-22",
+      "amostra": 4000,
+      "margem": 1.6,
+      "registro": "BR-07926/2026",
+      "totais": {
+        "22": 49,
+        "13": 48
       },
       "validos": {
-        "22": 51.1,
-        "13": 48.9
+        "22": 51,
+        "13": 49
       },
-      "fonte": "https://www.cnnbrasil.com.br/eleicoes/atlas-flavio-tem-511-dos-votos-validos-no-2o-turno-lula-489/",
-      "conferido": false
+      "fonte": "https://www.poder360.com.br/poderdata/flavio-tem-51-e-lula-tem-49-dos-votos-validos-diz-poderdata-aya/",
+      "conferido": true
+    },
+    {
+      "instituto": "Indexa",
+      "contratante": null,
+      "campo": [
+        "2026-10-20",
+        "2026-10-21"
+      ],
+      "divulgacao": "2026-10-22",
+      "amostra": 2000,
+      "margem": 2.2,
+      "registro": "BR-02348/2026",
+      "totais": {
+        "22": 45.2,
+        "13": 44.1
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/indexa-broadcast-flavio-tem-506-dos-votos-validos-lula-494/",
+      "conferido": true
+    },
+    {
+      "instituto": "Gerp",
+      "contratante": null,
+      "campo": [
+        "2026-10-19",
+        "2026-10-21"
+      ],
+      "divulgacao": "2026-10-21",
+      "amostra": 2400,
+      "margem": 2,
+      "registro": "BR-03835/2026",
+      "totais": {
+        "22": 50,
+        "13": 45
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/gerp-flavio-tem-53-dos-votos-validos-no-2o-turno-lula-47-2/",
+      "conferido": true
     },
     {
       "instituto": "Quaest",
-      "contratante": "TV Globo",
+      "contratante": null,
       "campo": [
         "2026-10-17",
         "2026-10-20"
       ],
       "divulgacao": "2026-10-21",
       "amostra": 2154,
-      "margem": null,
-      "registro": null,
+      "margem": 2,
+      "registro": "BR-08535/2026",
       "totais": {
         "22": 45,
         "13": 44
       },
       "validos": null,
-      "fonte": "https://www.gazetadopovo.com.br/eleicoes/2026/pesquisa-eleitoral-2026/quaest-presidente-outubro-2026-segundo-turno-2/",
+      "fonte": "https://oglobo.globo.com/blogs/pulso/post/2026/10/pesquisa-quaest-flavio-tem-45percent-e-lula-marca-44percent-distancia-diminui-a-quatro-dias-da-eleicao.ghtml",
+      "conferido": true
+    },
+    {
+      "instituto": "Palver",
+      "contratante": null,
+      "campo": [
+        "2026-10-18",
+        "2026-10-20"
+      ],
+      "divulgacao": null,
+      "amostra": 5000,
+      "margem": 2.4,
+      "registro": "BR-04612/2026",
+      "totais": {
+        "22": 50,
+        "13": 48
+      },
+      "validos": null,
+      "fonte": "https://www.terra.com.br/noticias/eleicoes/pesquisas/pesquisa-palver-flavio-bolsonaro-tem-50-e-lula-48-no-2-turno-candidatos-estao-em-empate-tecnico,6e99d76af4651a537219166fa78a4183lmte1cxs.html",
+      "conferido": true
+    },
+    {
+      "instituto": "IFP",
+      "contratante": null,
+      "campo": [
+        "2026-10-16",
+        "2026-10-20"
+      ],
+      "divulgacao": null,
+      "amostra": 3000,
+      "margem": 1.8,
+      "registro": "BR-07896/2026",
+      "totais": {
+        "22": 40.95,
+        "13": 39.65
+      },
+      "validos": null,
+      "fonte": "https://pt.wikipedia.org/wiki/Pesquisas_de_opini%C3%A3o_para_a_elei%C3%A7%C3%A3o_presidencial_no_Brasil_em_2026",
       "conferido": false
+    },
+    {
+      "instituto": "Futura",
+      "contratante": null,
+      "campo": [
+        "2026-10-19",
+        "2026-10-20"
+      ],
+      "divulgacao": "2026-10-21",
+      "amostra": 2000,
+      "margem": 2.2,
+      "registro": "BR-06614/2026",
+      "totais": {
+        "22": 48.9,
+        "13": 46.8
+      },
+      "validos": null,
+      "fonte": "https://www.cartacapital.com.br/politica/flavio-e-lula-seguem-tecnicamente-empatados-mostra-pesquisa-futura/",
+      "conferido": true
+    },
+    {
+      "instituto": "Veritá",
+      "contratante": null,
+      "campo": [
+        "2026-10-15",
+        "2026-10-19"
+      ],
+      "divulgacao": "2026-10-21",
+      "amostra": 15554,
+      "margem": 1,
+      "registro": "BR-06396/2026",
+      "totais": {
+        "22": 49.7,
+        "13": 48.2
+      },
+      "validos": {
+        "22": 50.7,
+        "13": 49.3
+      },
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/verita-flavio-tem-507-dos-votos-validos-no-2o-turno-lula-493/",
+      "conferido": true
+    },
+    {
+      "instituto": "Real Time Big Data",
+      "contratante": null,
+      "campo": [
+        "2026-10-15",
+        "2026-10-19"
+      ],
+      "divulgacao": null,
+      "amostra": 2000,
+      "margem": 2,
+      "registro": "BR-02952/2026",
+      "totais": {
+        "22": 48,
+        "13": 45
+      },
+      "validos": null,
+      "fonte": "https://www.riotimesonline.com/real-time-big-data-poll-flavio-52-lula-48-runoff-2026/",
+      "conferido": true
+    },
+    {
+      "instituto": "Ideia",
+      "contratante": "Meio",
+      "campo": [
+        "2026-10-15",
+        "2026-10-19"
+      ],
+      "divulgacao": null,
+      "amostra": 1500,
+      "margem": 2.5,
+      "registro": "BR-08251/2026",
+      "totais": {
+        "22": 48,
+        "13": 46
+      },
+      "validos": null,
+      "fonte": "https://pt.wikipedia.org/wiki/Pesquisas_de_opini%C3%A3o_para_a_elei%C3%A7%C3%A3o_presidencial_no_Brasil_em_2026",
+      "conferido": true
+    },
+    {
+      "instituto": "Gerp",
+      "contratante": null,
+      "campo": [
+        "2026-10-15",
+        "2026-10-19"
+      ],
+      "divulgacao": null,
+      "amostra": 2400,
+      "margem": 2,
+      "registro": null,
+      "totais": {
+        "22": 50,
+        "13": 45
+      },
+      "validos": null,
+      "fonte": "https://pt.wikipedia.org/wiki/Pesquisas_de_opini%C3%A3o_para_a_elei%C3%A7%C3%A3o_presidencial_no_Brasil_em_2026",
+      "conferido": false
+    },
+    {
+      "instituto": "Alfa",
+      "contratante": null,
+      "campo": [
+        "2026-10-15",
+        "2026-10-19"
+      ],
+      "divulgacao": null,
+      "amostra": 2700,
+      "margem": 1.9,
+      "registro": "BR-00820/2026",
+      "totais": {
+        "22": 48.8,
+        "13": 45.9
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/alfa-flavio-tem-515-dos-votos-validos-no-2o-turno-lula-485/",
+      "conferido": true
+    },
+    {
+      "instituto": "PoderData",
+      "contratante": null,
+      "campo": [
+        "2026-10-16",
+        "2026-10-18"
+      ],
+      "divulgacao": null,
+      "amostra": 3000,
+      "margem": 1.8,
+      "registro": "BR-02586/2026",
+      "totais": {
+        "22": 49,
+        "13": 46
+      },
+      "validos": {
+        "22": 52,
+        "13": 48
+      },
+      "fonte": "https://www.poder360.com.br/poderdata/pesquisa-poderdata-aya-leia-os-resultados-de-lula-e-flavio-no-2o-turno-19out2026/",
+      "conferido": true
+    },
+    {
+      "instituto": "Nexus",
+      "contratante": "BTG Pactual",
+      "campo": [
+        "2026-10-16",
+        "2026-10-18"
+      ],
+      "divulgacao": null,
+      "amostra": 2002,
+      "margem": 2,
+      "registro": "BR-04499/2026",
+      "totais": {
+        "22": 46.5,
+        "13": 45.9
+      },
+      "validos": null,
+      "fonte": "https://www.nexus.fsb.com.br/estudos-divulgados/pesquisa-btg-nexus-de-intencao-de-votos-para-presidente-do-brasil-19-de-outubro-de-2026/",
+      "conferido": true
+    },
+    {
+      "instituto": "AtlasIntel",
+      "contratante": null,
+      "campo": [
+        "2026-10-13",
+        "2026-10-18"
+      ],
+      "divulgacao": null,
+      "amostra": 4998,
+      "margem": 1,
+      "registro": null,
+      "totais": {
+        "22": 49.8,
+        "13": 47.6
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/atlas-flavio-tem-511-dos-votos-validos-no-2o-turno-lula-489/",
+      "conferido": true
+    },
+    {
+      "instituto": "Vox",
+      "contratante": null,
+      "campo": [
+        "2026-10-15",
+        "2026-10-17"
+      ],
+      "divulgacao": "2026-10-18",
+      "amostra": 2100,
+      "margem": 2.15,
+      "registro": "BR-04332/2026",
+      "totais": {
+        "22": 44.6,
+        "13": 46.4
+      },
+      "validos": null,
+      "fonte": "https://www.metropoles.com/brasil/vox-brasil-com-empate-tecnico-lula-tem-464-e-flavio-bolsonaro-446",
+      "conferido": true
+    },
+    {
+      "instituto": "Futura",
+      "contratante": null,
+      "campo": [
+        "2026-10-16",
+        "2026-10-17"
+      ],
+      "divulgacao": null,
+      "amostra": 2000,
+      "margem": 2.2,
+      "registro": "BR-06715/2026",
+      "totais": {
+        "22": 48.3,
+        "13": 47.5
+      },
+      "validos": null,
+      "fonte": "https://exame.com/brasil/pesquisa-futura-para-presidente-flavio-bolsonaro-tem-504-e-lula-496-no-2o-turno/",
+      "conferido": true
+    },
+    {
+      "instituto": "DataTrends",
+      "contratante": null,
+      "campo": [
+        "2026-10-15",
+        "2026-10-17"
+      ],
+      "divulgacao": null,
+      "amostra": 2000,
+      "margem": 2.19,
+      "registro": "BR-04454/2026",
+      "totais": {
+        "22": 49,
+        "13": 46
+      },
+      "validos": null,
+      "fonte": "https://robsonpiresxerife.com/pesquisa-datatrends-flavio-bolsonaro-tem-515-dos-votos-validos-contra-485-de-lula/",
+      "conferido": true
+    },
+    {
+      "instituto": "Veritá",
+      "contratante": null,
+      "campo": [
+        "2026-10-12",
+        "2026-10-16"
+      ],
+      "divulgacao": null,
+      "amostra": 2,
+      "margem": 1,
+      "registro": "BR-01107/2026",
+      "totais": {
+        "22": 49.7,
+        "13": 47.7
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/verita-flavio-tem-511-dos-votos-validos-no-2o-turno-lula-489/",
+      "conferido": true
+    },
+    {
+      "instituto": "Ranking",
+      "contratante": null,
+      "campo": [
+        "2026-10-14",
+        "2026-10-16"
+      ],
+      "divulgacao": null,
+      "amostra": 2100,
+      "margem": 2.15,
+      "registro": "BR-00152/2026",
+      "totais": null,
+      "validos": {
+        "22": 49.6,
+        "13": 50.4
+      },
+      "fonte": "https://pt.wikipedia.org/wiki/Pesquisas_de_opini%C3%A3o_para_a_elei%C3%A7%C3%A3o_presidencial_no_Brasil_em_2026",
+      "conferido": false
+    },
+    {
+      "instituto": "Phoenix",
+      "contratante": null,
+      "campo": [
+        "2026-10-13",
+        "2026-10-16"
+      ],
+      "divulgacao": null,
+      "amostra": 3999,
+      "margem": 1.55,
+      "registro": "BR-08809/2026",
+      "totais": {
+        "22": 45.21,
+        "13": 47.59
+      },
+      "validos": null,
+      "fonte": "https://pt.wikipedia.org/wiki/Pesquisas_de_opini%C3%A3o_para_a_elei%C3%A7%C3%A3o_presidencial_no_Brasil_em_2026",
+      "conferido": false
+    },
+    {
+      "instituto": "Gerp",
+      "contratante": null,
+      "campo": [
+        "2026-10-14",
+        "2026-10-16"
+      ],
+      "divulgacao": null,
+      "amostra": 2400,
+      "margem": 2,
+      "registro": null,
+      "totais": {
+        "22": 50,
+        "13": 45
+      },
+      "validos": null,
+      "fonte": "https://tmc.com.br/politica/pesquisa-gerp-flavio-bolsonaro-lidera-com-50-contra-45-de-lula/",
+      "conferido": true
+    },
+    {
+      "instituto": "PoderData",
+      "contratante": null,
+      "campo": [
+        "2026-10-13",
+        "2026-10-15"
+      ],
+      "divulgacao": null,
+      "amostra": 3000,
+      "margem": 1.8,
+      "registro": null,
+      "totais": {
+        "22": 47,
+        "13": 47
+      },
+      "validos": {
+        "22": 50,
+        "13": 50
+      },
+      "fonte": "https://noticias.uol.com.br/eleicoes/2026/10/16/poderdata-lula-flavio-bolsonaro-presidencia-republica-segundo-turno.ghtm",
+      "conferido": true
+    },
+    {
+      "instituto": "MDA",
+      "contratante": "CNT",
+      "campo": [
+        "2026-10-13",
+        "2026-10-15"
+      ],
+      "divulgacao": null,
+      "amostra": 2014,
+      "margem": 2.2,
+      "registro": null,
+      "totais": {
+        "22": 46.8,
+        "13": 45.9
+      },
+      "validos": null,
+      "fonte": "https://noticias.uol.com.br/eleicoes/2026/10/16/cntmda-pesquisa-presidencial-2-turno.ghtm",
+      "conferido": true
+    },
+    {
+      "instituto": "Ipespe",
+      "contratante": null,
+      "campo": [
+        "2026-10-13",
+        "2026-10-15"
+      ],
+      "divulgacao": "2026-10-17",
+      "amostra": 1500,
+      "margem": 2.6,
+      "registro": null,
+      "totais": {
+        "22": 48,
+        "13": 46
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/ipespe-abrapel-flavio-tem-512-dos-votos-validos-no-2o-turno-lula-488/",
+      "conferido": true
+    },
+    {
+      "instituto": "Futura",
+      "contratante": null,
+      "campo": [
+        "2026-10-14",
+        "2026-10-15"
+      ],
+      "divulgacao": "2026-10-16",
+      "amostra": 2000,
+      "margem": 2.2,
+      "registro": null,
+      "totais": {
+        "22": 49,
+        "13": 47.5
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/futura-flavio-tem-508-dos-votos-validos-no-2o-turno-lula-492/",
+      "conferido": true
+    },
+    {
+      "instituto": "Datafolha",
+      "contratante": null,
+      "campo": [
+        "2026-10-13",
+        "2026-10-15"
+      ],
+      "divulgacao": "2026-10-08",
+      "amostra": 2520,
+      "margem": 2,
+      "registro": null,
+      "totais": {
+        "22": 47,
+        "13": 45
+      },
+      "validos": null,
+      "fonte": "https://g1.globo.com/politica/eleicoes/2026/pesquisa-eleitoral/noticia/2026/10/15/datafolha-presidente-segundo-turno-15-outubro.ghtml",
+      "conferido": true
+    },
+    {
+      "instituto": "Indexa",
+      "contratante": null,
+      "campo": [
+        "2026-10-13",
+        "2026-10-14"
+      ],
+      "divulgacao": "2026-10-15",
+      "amostra": 2000,
+      "margem": 2.2,
+      "registro": null,
+      "totais": {
+        "22": 44,
+        "13": 42
+      },
+      "validos": null,
+      "fonte": "https://viva.com.br/politica/indexabroadcast-no-2-turno-flavio-bolsonaro-tem-44-ante-42-de-lula.html",
+      "conferido": true
     },
     {
       "instituto": "Quaest",
       "contratante": null,
-      "campo": null,
+      "campo": [
+        "2026-10-10",
+        "2026-10-13"
+      ],
       "divulgacao": "2026-10-14",
-      "amostra": null,
+      "amostra": 2154,
       "margem": 2,
       "registro": null,
       "totais": {
@@ -60,27 +585,226 @@
         "13": 44
       },
       "validos": null,
-      "fonte": "https://forbes.com.br/geral/2026/10/quaest-no-2o-turno-flavio-bolsonaro-tem-46-e-lula-44/",
+      "fonte": "https://g1.globo.com/politica/eleicoes/2026/pesquisa-eleitoral/noticia/2026/10/14/quaest-presidente-14-outubro.ghtml",
+      "conferido": true
+    },
+    {
+      "instituto": "Palver",
+      "contratante": null,
+      "campo": [
+        "2026-10-10",
+        "2026-10-13"
+      ],
+      "divulgacao": "2026-10-15",
+      "amostra": 5000,
+      "margem": 2.3,
+      "registro": null,
+      "totais": {
+        "22": 50,
+        "13": 49
+      },
+      "validos": null,
+      "fonte": "https://viva.com.br/politica/palver-flavio-bolsonaro-tem-50-e-lula-49-em-empate-tecnico-no-2-turno.html",
+      "conferido": true
+    },
+    {
+      "instituto": "PoderData",
+      "contratante": null,
+      "campo": [
+        "2026-10-10",
+        "2026-10-12"
+      ],
+      "divulgacao": null,
+      "amostra": 3000,
+      "margem": 1.8,
+      "registro": null,
+      "totais": {
+        "22": 48,
+        "13": 46
+      },
+      "validos": {
+        "22": 51,
+        "13": 49
+      },
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/poderdata-aya-flavio-tem-51-dos-votos-validos-no-2o-turno-lula-49/",
+      "conferido": true
+    },
+    {
+      "instituto": "Nexus",
+      "contratante": "BTG Pactual",
+      "campo": [
+        "2026-10-10",
+        "2026-10-12"
+      ],
+      "divulgacao": null,
+      "amostra": 2000,
+      "margem": 2,
+      "registro": null,
+      "totais": {
+        "22": 48,
+        "13": 45
+      },
+      "validos": null,
+      "fonte": "https://noticias.uol.com.br/eleicoes/2026/10/13/btgnexus-pesquisa-presidencial-segundo-turno.ghtm",
+      "conferido": true
+    },
+    {
+      "instituto": "Gerp",
+      "contratante": null,
+      "campo": [
+        "2026-10-08",
+        "2026-10-12"
+      ],
+      "divulgacao": null,
+      "amostra": 2400,
+      "margem": 2,
+      "registro": null,
+      "totais": {
+        "22": 53,
+        "13": 44
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/gerp-flavio-tem-55-dos-votos-validos-no-2o-turno-lula-45/",
+      "conferido": true
+    },
+    {
+      "instituto": "Futura",
+      "contratante": null,
+      "campo": [
+        "2026-10-07",
+        "2026-10-10"
+      ],
+      "divulgacao": "2026-10-13",
+      "amostra": 2000,
+      "margem": 2.2,
+      "registro": null,
+      "totais": {
+        "22": 50,
+        "13": 46.6
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/futura-flavio-tem-518-dos-votos-validos-no-2o-turno-lula-482/",
+      "conferido": true
+    },
+    {
+      "instituto": "DataTrends",
+      "contratante": null,
+      "campo": [
+        "2026-10-07",
+        "2026-10-09"
+      ],
+      "divulgacao": null,
+      "amostra": 2000,
+      "margem": 2.19,
+      "registro": null,
+      "totais": null,
+      "validos": {
+        "22": 53.1,
+        "13": 46.9
+      },
+      "fonte": "https://pt.wikipedia.org/wiki/Pesquisas_de_opini%C3%A3o_para_a_elei%C3%A7%C3%A3o_presidencial_no_Brasil_em_2026",
       "conferido": false
+    },
+    {
+      "instituto": "Ipespe",
+      "contratante": null,
+      "campo": [
+        "2026-10-06",
+        "2026-10-08"
+      ],
+      "divulgacao": "2026-10-10",
+      "amostra": 1500,
+      "margem": 2.6,
+      "registro": null,
+      "totais": {
+        "22": 49,
+        "13": 44
+      },
+      "validos": {
+        "22": 52.7,
+        "13": 47.3
+      },
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/ipespe-flavio-tem-527-dos-votos-validos-no-2o-turno-lula-473/",
+      "conferido": true
+    },
+    {
+      "instituto": "AtlasIntel",
+      "contratante": null,
+      "campo": [
+        "2026-10-03",
+        "2026-10-08"
+      ],
+      "divulgacao": "2026-10-09",
+      "amostra": 5026,
+      "margem": 1,
+      "registro": null,
+      "totais": {
+        "22": 51.1,
+        "13": 45.7
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/atlas-flavio-tem-528-dos-votos-validos-no-2o-turno-lula-472/",
+      "conferido": true
+    },
+    {
+      "instituto": "Vox",
+      "contratante": null,
+      "campo": [
+        "2026-10-05",
+        "2026-10-07"
+      ],
+      "divulgacao": "2026-10-09",
+      "amostra": 2100,
+      "margem": 2.15,
+      "registro": null,
+      "totais": {
+        "22": 42.7,
+        "13": 44.2
+      },
+      "validos": null,
+      "fonte": "https://www.cnnbrasil.com.br/eleicoes/vox-lula-tem-442-das-intencoes-de-voto-no-2o-turno-flavio-427/",
+      "conferido": true
+    },
+    {
+      "instituto": "PoderData",
+      "contratante": null,
+      "campo": [
+        "2026-10-05",
+        "2026-10-07"
+      ],
+      "divulgacao": "2026-10-08",
+      "amostra": 3000,
+      "margem": 1.8,
+      "registro": null,
+      "totais": {
+        "22": 49,
+        "13": 44
+      },
+      "validos": {
+        "22": 53,
+        "13": 47
+      },
+      "fonte": "https://www.poder360.com.br/poderdata/flavio-tem-53-contra-47-de-lula-no-2o-turno-diz-pesquisa-poderdata-aya/",
+      "conferido": true
     },
     {
       "instituto": "Datafolha",
       "contratante": null,
-      "campo": null,
+      "campo": [
+        "2026-10-06",
+        "2026-10-07"
+      ],
       "divulgacao": "2026-10-08",
-      "amostra": null,
-      "margem": null,
+      "amostra": 2520,
+      "margem": 2,
       "registro": null,
       "totais": {
         "22": 49,
         "13": 45
       },
-      "validos": {
-        "22": 52,
-        "13": 48
-      },
-      "fonte": "https://www.brasildefato.com.br/2026/10/08/datafolha-segundo-turno-flavio-bolsonaro-49-lula-45/",
-      "conferido": false
+      "validos": null,
+      "fonte": "https://g1.globo.com/politica/eleicoes/2026/pesquisa-eleitoral/noticia/2026/10/08/datafolha-presidente-8-outubro.ghtml",
+      "conferido": true
     },
     {
       "instituto": "Quaest",
@@ -89,17 +813,37 @@
         "2026-10-02",
         "2026-10-03"
       ],
-      "divulgacao": "2026-10-03",
+      "divulgacao": null,
       "amostra": 3702,
-      "margem": null,
+      "margem": 2,
       "registro": null,
       "totais": {
         "22": 44,
         "13": 42
       },
       "validos": null,
-      "fonte": "https://www.cnnbrasil.com.br/eleicoes/quaest-2-turno/",
-      "conferido": false,
+      "fonte": "https://g1.globo.com/politica/eleicoes/2026/pesquisa-eleitoral/noticia/2026/10/03/quaest-2o-turno-flavio-bolsonaro-44percent-lula-42percent.ghtml",
+      "conferido": true,
+      "antesDo1Turno": true
+    },
+    {
+      "instituto": "Datafolha",
+      "contratante": null,
+      "campo": [
+        "2026-10-03",
+        "2026-10-03"
+      ],
+      "divulgacao": null,
+      "amostra": 8,
+      "margem": 2,
+      "registro": null,
+      "totais": {
+        "22": 46,
+        "13": 47
+      },
+      "validos": null,
+      "fonte": "https://pt.wikipedia.org/wiki/Pesquisas_de_opini%C3%A3o_para_a_elei%C3%A7%C3%A3o_presidencial_no_Brasil_em_2026",
+      "conferido": true,
       "antesDo1Turno": true
     }
   ]

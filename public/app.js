@@ -1650,7 +1650,7 @@ function renderCidades(d) {
 // Pesquisas de 2º turno para presidente, reunidas em pesquisas.json (com a fonte de cada uma).
 let pesquisas = null;
 const carregarPesquisas = () =>
-  (pesquisas ||= fetch("pesquisas.json?v=20", { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))));
+  (pesquisas ||= fetch("pesquisas.json?v=23", { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))));
 
 const dataBR = (iso) => (iso ? new Date(iso + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "—");
 const fimCampo = (p) => (p.campo ? p.campo[1] : p.divulgacao);
@@ -1692,7 +1692,7 @@ async function renderPesquisas(d) {
   $("#pesq-aviso").hidden = !aConferir && !governador();
   $("#pesq-aviso").textContent = governador()
     ? "As pesquisas reunidas aqui são do 2º turno para presidente."
-    : `${aConferir} das ${lista.length} pesquisas ainda estão marcadas "a conferir": os números vieram de reportagens e ainda não foram conferidos na divulgação original do instituto. Confira sempre pelo link da fonte.`;
+    : `${aConferir} das ${lista.length} pesquisas ainda estão marcadas "a conferir": aparecem em só uma das listas de pesquisas (Wikipédia em português e em inglês) ou com datas diferentes. As outras têm os mesmos números nas duas. Confira sempre pelo link da fonte.`;
   $("#pesq-atualizado").textContent = `lista atualizada em ${dataBR(dados.atualizado)}`;
 
   // média
@@ -1738,7 +1738,7 @@ async function renderPesquisas(d) {
   // tabela
   $("#pesq-nota").textContent = dados.nota;
   $("#tabela-pesquisas").innerHTML =
-    `<thead><tr><th>Divulgação</th><th>Instituto</th><th>Campo</th><th class="r">Entrevistas</th><th class="r">Margem</th>
+    `<thead><tr><th>Campo</th><th>Instituto</th><th class="r">Entrevistas</th><th class="r">Margem</th>
       <th class="r">${sw(F)} Flávio</th><th class="r">${sw(L)} Lula</th><th class="r">Diferença</th><th>Registro TSE</th><th>Fonte</th></tr></thead><tbody>` +
     lista
       .map((p) => {
@@ -1746,9 +1746,8 @@ async function renderPesquisas(d) {
         const dif = v["22"] - v["13"];
         const lider = dif >= 0 ? F : L;
         return `<tr>
-          <td>${dataBR(p.divulgacao)}${p.antesDo1Turno ? '<small>antes do 1º turno</small>' : ""}</td>
+          <td>${p.campo ? `${dataBR(p.campo[0])} a ${dataBR(p.campo[1])}` : dataBR(p.divulgacao)}${p.antesDo1Turno ? '<small>antes do 1º turno</small>' : ""}</td>
           <td><b>${esc(p.instituto)}</b>${p.contratante ? `<small>${esc(p.contratante)}</small>` : ""}${p.conferido ? "" : ' <span class="tag conferir">a conferir</span>'}</td>
-          <td>${p.campo ? `${dataBR(p.campo[0])} a ${dataBR(p.campo[1])}` : "—"}</td>
           <td class="r">${p.amostra ? fmt.format(p.amostra) : "—"}</td>
           <td class="r">${p.margem != null ? `±${ppFmt.format(p.margem)}` : "—"}</td>
           <td class="r"><b>${pctFmt.format(v["22"])}%</b><small>${p.totais ? `${ppFmt.format(p.totais["22"])}% dos totais` : ""}</small></td>
